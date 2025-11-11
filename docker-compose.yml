@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  app:
+    container_name: russian-rep-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+    volumes:
+      - ./data/osu-cache:/app/osu_cache
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: ${DB_CONN}
+      IrcConnection__Nickname: ${IRC_NICK}
+      IrcConnection__Server: ${IRC_SERVER}
+      IrcConnection__Port: ${IRC_PORT}
+      IrcConnection__Password: ${IRC_PASS}
+      IrcConnection__Channel: ${IRC_CHANNEL}
+      OsuApi__ClientId: ${OSU_ID}
+      OsuApi__ClientSecret: ${OSU_SECRET}
+    networks: [osu-russian-rep]
+    restart: unless-stopped
+
+  db:
+    image: postgres:14
+    container_name: osu-rep-db
+    environment:
+      POSTGRES_DB: OsuReputation
+      POSTGRES_USER: postgrese vt
+      POSTGRES_PASSWORD: ${DB_PASS}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [osu-russian-rep]
+    restart: unless-stopped
+volumes:
+  pgdata:
+
+networks:
+  osu-russian-rep:
+    name: osu-russian-rep
+    driver: bridge

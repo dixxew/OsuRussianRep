@@ -1,0 +1,106 @@
+## =============================
+## Visual Studio / Rider / .NET
+## =============================
+
+# IDE / User settings
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+_ReSharper*/
+*.DotSettings.user
+
+# Build results
+[Bb]in/
+[Oo]bj/
+[Ll]og[s]*/
+[Dd]ebug*/
+[Rr]elease*/
+x64/
+x86/
+[Aa][Rr][Mm]*/
+[Bb]ld/
+[Oo]ut/
+artifacts/
+
+# Packages
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nupkg
+*.snupkg
+
+# Publish / deploy
+publish/
+*.pubxml
+*.publishproj
+*.azurePubxml
+PublishScripts/
+
+# Logs / temp / cache
+*.log
+*.tmp
+*.cache
+*.pidb
+*.svclog
+*.bak
+*.tmp_proj
+~$*
+*~
+.localhistory/
+MigrationBackup/
+
+# Coverage / test / benchmark
+[Tt]est[Rr]esult*/
+BenchmarkDotNet.Artifacts/
+*.coverage*
+coverage*.xml
+coverage*.json
+coverage*.info
+
+# Frontend / node
+node_modules/
+dist/
+wwwroot/
+
+# Database
+*.mdf
+*.ldf
+*.ndf
+
+# Security / secrets
+secrets.json
+*.pfx
+*.publishsettings
+*.key
+*.pem
+*.cer
+*.crt
+*.csr
+
+# Env / config files (локальные и чувствительные)
+.env
+.env.*
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.local.json
+appsettings.*.dev.json
+appsettings.Test.json
+appsettings.Staging.json
+appsettings.Private.json
+launchSettings.json
+
+# JetBrains Rider extra
+.idea/httpRequests/
+.idea/shelf/
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/**/dataSources/
+.idea/**/dataSources.xml
+
+# Misc
+*.dbmdl
+*.jfm
+*.tmp_proj
