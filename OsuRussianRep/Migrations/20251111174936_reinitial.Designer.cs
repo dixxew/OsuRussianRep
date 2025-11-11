@@ -12,8 +12,8 @@ using OsuRussianRep.Context;
 namespace OsuRussianRep.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251111165339_CleanInitial")]
-    partial class CleanInitial
+    [Migration("20251111174936_reinitial")]
+    partial class reinitial
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
