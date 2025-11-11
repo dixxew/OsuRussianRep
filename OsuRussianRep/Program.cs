@@ -134,37 +134,37 @@ internal class Program
         }
 
         // IRC lifecycle: коннектим при старте, отключаемся при стопе
-        // var irc = app.Services.GetRequiredService<IIrcService>();
-        // var handler = app.Services.GetRequiredService<IrcMessageHandler>();
-        // var lifetime = app.Lifetime;
-        //
-        // irc.ChannelMessageReceived += async (_, e) =>
-        // {
-        //     await handler.HandleChannelMessageAsync(e.Channel, e.Nick, e.Text);
-        // };
-        // irc.PrivateMessageReceived += async (_, e) =>
-        // {
-        //     await handler.HandlePrivateMessageAsync(e.Nick, e.Text);
-        // };
-        //
-        // lifetime.ApplicationStarted.Register(async void () =>
-        // {
-        //     try
-        //     {
-        //         await irc.ConnectAsync();
-        //         await irc.JoinAsync(cfg["IrcConnection:Channel"]);
-        //     }
-        //     catch (Exception ex)
-        //     {
-        //         app.Logger.LogError(ex, "IRC: failed to connect on start");
-        //     }
-        // });
-        //
-        // lifetime.ApplicationStopping.Register(async void () =>
-        // {
-        //     try { await irc.DisconnectAsync("shutdown"); }
-        //     catch { /* ignore */ }
-        //});
+         var irc = app.Services.GetRequiredService<IIrcService>();
+         var handler = app.Services.GetRequiredService<IrcMessageHandler>();
+         var lifetime = app.Lifetime;
+        
+         irc.ChannelMessageReceived += async (_, e) =>
+         {
+             await handler.HandleChannelMessageAsync(e.Channel, e.Nick, e.Text);
+         };
+         irc.PrivateMessageReceived += async (_, e) =>
+         {
+             await handler.HandlePrivateMessageAsync(e.Nick, e.Text);
+         };
+        
+         lifetime.ApplicationStarted.Register(async void () =>
+         {
+             try
+             {
+                 await irc.ConnectAsync();
+                 await irc.JoinAsync(cfg["IrcConnection:Channel"]);
+             }
+             catch (Exception ex)
+             {
+                 app.Logger.LogError(ex, "IRC: failed to connect on start");
+             }
+         });
+        
+         lifetime.ApplicationStopping.Register(async void () =>
+         {
+             try { await irc.DisconnectAsync("shutdown"); }
+             catch { /* ignore */ }
+        });
 
         app.Run();
 
