@@ -83,6 +83,7 @@ secrets.json
 # Env / config files (локальные и чувствительные)
 .env
 .env.*
+!.env.example
 appsettings.Development.json
 appsettings.Local.json
 appsettings.*.local.json

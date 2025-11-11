@@ -28,7 +28,7 @@ services:
     container_name: osu-rep-db
     environment:
       POSTGRES_DB: OsuReputation
-      POSTGRES_USER: postgrese vt
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASS}
     volumes:
       - pgdata:/var/lib/postgresql/data
