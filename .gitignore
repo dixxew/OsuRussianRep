@@ -105,3 +105,6 @@ launchSettings.json
 *.dbmdl
 *.jfm
 *.tmp_proj
+
+# Volume data
+data/
