@@ -22,11 +22,8 @@ FROM mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
 COPY --from=build /app/publish .
 
-COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
-
 # Открываем порт
 EXPOSE 5000
 ENV ASPNETCORE_URLS=http://+:5000
 
-ENTRYPOINT ["/bin/bash", "/app/start.sh"]
+ENTRYPOINT ["dotnet", "OsuRussianRep.dll"]
