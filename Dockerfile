@@ -26,4 +26,4 @@ COPY --from=build /app/publish .
 EXPOSE 5000
 ENV ASPNETCORE_URLS=http://+:5000
 
-ENTRYPOINT ["/bin/bash", "/app/start.sh"]
+ENTRYPOINT ["dotnet", "OsuRussianRep.dll"]
