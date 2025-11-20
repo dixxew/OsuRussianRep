@@ -25,7 +25,7 @@ public sealed class WordStatsService(AppDbContext db, IStopWordsProvider stopWor
         var capped = Math.Clamp(limit, 1, 500);
 
         var data = await db.WordsInDay.AsNoTracking()
-            .Where(wd => wd.Day >= from && wd.Day < to && !stopWordsProvider.Contains(wd.Word.Lemma))
+            .Where(wd => wd.Day >= from && wd.Day < to && !stopWordsProvider.All.Contains(wd.Word.Lemma))
             .GroupBy(wd => wd.WordId)
             .Select(g => new {WordId = g.Key, Cnt = g.Sum(x => x.Cnt)})
             .OrderByDescending(x => x.Cnt)

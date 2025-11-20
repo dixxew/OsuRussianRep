@@ -21,7 +21,7 @@ public sealed class UserWordStatsService(AppDbContext db, IStopWordsProvider sto
         var q = from wu in db.WordUsers.AsNoTracking()
             where wu.UserId == userId
             join w in db.Words.AsNoTracking() on wu.WordId equals w.Id
-            where !stopWordsProvider.Contains(w.Lemma) // 🧹 фильтруем мусор
+            where !stopWordsProvider.All.Contains(w.Lemma) // 🧹 фильтруем мусор
             orderby wu.Cnt descending
             select new TopWordDto(w.Lemma, wu.Cnt);
 
