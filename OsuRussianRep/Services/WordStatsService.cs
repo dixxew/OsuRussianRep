@@ -19,24 +19,37 @@ public interface IWordStatsService
 
 public sealed class WordStatsService(AppDbContext db, IStopWordsProvider stopWordsProvider) : IWordStatsService
 {
-    public async Task<IReadOnlyList<TopWordDto>> GetTopWords(DateOnly from, DateOnly to, int limit,
-        CancellationToken ct)
+    public async Task<IReadOnlyList<TopWordDto>> GetTopWords(
+        DateOnly from, DateOnly to, int limit, CancellationToken ct)
     {
         var capped = Math.Clamp(limit, 1, 500);
 
-        var data = await db.WordsInDay.AsNoTracking()
-            .Where(wd => wd.Day >= from && wd.Day < to && !stopWordsProvider.All.Contains(wd.Word.Lemma))
-            .GroupBy(wd => wd.WordId)
-            .Select(g => new {WordId = g.Key, Cnt = g.Sum(x => x.Cnt)})
-            .OrderByDescending(x => x.Cnt)
-            .Take(capped)
-            .Join(db.Words.AsNoTracking(),
-                agg => agg.WordId,
-                w => w.Id,
-                (agg, w) => new TopWordDto(w.Lemma, agg.Cnt, w.WordScore))
-            .ToListAsync(ct);
+        var query =
+            db.WordsInDay
+                .AsNoTracking()
+                .Where(wd => wd.Day >= from && wd.Day < to
+                                            && !stopWordsProvider.All.Contains(wd.Word.Lemma))
+                .GroupBy(wd => wd.WordId)
+                .Select(g => new
+                {
+                    WordId = g.Key,
+                    Cnt = g.Sum(x => x.Cnt)
+                })
+                .Join(db.Words.AsNoTracking(),
+                    agg => agg.WordId,
+                    w => w.Id,
+                    (agg, w) => new
+                    {
+                        w.Lemma,
+                        agg.Cnt,
+                        w.WordScore
+                    })
+                .OrderByDescending(x => x.WordScore) // rate first
+                .ThenByDescending(x => x.Cnt) // freq second
+                .Take(capped)
+                .Select(x => new TopWordDto(x.Lemma, x.Cnt, x.WordScore));
 
-        return data;
+        return await query.ToListAsync(ct);
     }
 
 
@@ -88,8 +101,8 @@ public sealed class WordStatsService(AppDbContext db, IStopWordsProvider stopWor
 
         var user = await db.ChatUsers
             .FirstOrDefaultAsync(u => u.Nickname == senderNickname, ct);
-        
-        if (user is null) 
+
+        if (user is null)
             return;
 
         if (DateTime.UtcNow - user.LastUsedAddRep < new TimeSpan(1, 0, 0, 0))
