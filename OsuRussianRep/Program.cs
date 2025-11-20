@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using OsuRussianRep.Context;
+using OsuRussianRep.Helpers;
 using OsuRussianRep.Interfaces;
 using OsuRussianRep.Mapping;
 using OsuRussianRep.Services;
@@ -45,12 +46,13 @@ internal class Program
         builder.Services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(cfg.GetConnectionString("DefaultConnection")));
 
-        builder.Services.AddSingleton<WordStatsService>();
         builder.Services.AddSingleton<IrcMessageHandler>();
-        builder.Services.AddSingleton<ReputationService>();
-        builder.Services.AddSingleton<MessageService>();
-        builder.Services.AddSingleton<OsuService>();
+        builder.Services.AddSingleton<IStopWordsProvider, StopWordsProvider>();
         builder.Services.AddSingleton<IIrcService, IrcService>();
+        
+        builder.Services.AddScoped<OsuService>();
+        builder.Services.AddScoped<MessageService>();
+        builder.Services.AddScoped<ReputationService>();
         builder.Services.AddScoped<IUsersService, UsersService>();
         builder.Services.AddScoped<IWordStatsService, WordStatsService>();
         builder.Services.AddScoped<IUserWordStatsService, UserWordStatsService>();

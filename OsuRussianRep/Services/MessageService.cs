@@ -4,14 +4,11 @@ using OsuRussianRep.Models;
 
 namespace OsuRussianRep.Services;
 
-public class MessageService(IServiceScopeFactory scopeFactory, ILogger<MessageService> logger)
+public class MessageService(AppDbContext db, ILogger<MessageService> logger)
 {
     public async Task AddUserMessageAsync(string nickname, string message, string channel)
     {
-        using var scope = scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var user = await context.ChatUsers
+        var user = await db.ChatUsers
             .FirstOrDefaultAsync(u => u.Nickname == nickname);
 
         if (user == null)
@@ -22,30 +19,28 @@ public class MessageService(IServiceScopeFactory scopeFactory, ILogger<MessageSe
                 Reputation = 0
             };
 
-            await context.ChatUsers.AddAsync(user);
+            await db.ChatUsers.AddAsync(user);
             logger.LogInformation("Добавлен новый пользователь: {Nickname}", nickname);
         }
 
-        await context.Messages.AddAsync(new Message
+        await db.Messages.AddAsync(new Message
         {
             ChatChannel = channel,
             Text = message,
             UserId = user.Id
         });
 
-        await context.SaveChangesAsync();
+        await db.SaveChangesAsync();
 
         logger.LogDebug("Сохранено сообщение от {Nickname} в канал {Channel}", nickname, channel);
     }
 
     public List<ChannelDailyMessageCount> GetMessageCountsForLast30Days()
     {
-        using var scope = scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var startDate = DateTime.UtcNow.AddDays(-30).Date;
         var endDate = DateTime.UtcNow.Date.AddDays(1);
 
-        var messageCounts = context.Messages
+        var messageCounts = db.Messages
             .Where(m => m.Date >= startDate && m.Date < endDate)
             .GroupBy(m => m.Date.Date)
             .Select(g => new ChannelDailyMessageCount
@@ -74,12 +69,10 @@ public class MessageService(IServiceScopeFactory scopeFactory, ILogger<MessageSe
 
     public List<HourlyAverageMessageCount> GetHourlyAverageMessageCountsForLast30Days()
     {
-        using var scope = scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var startDate = DateTime.UtcNow.AddDays(-30).Date;
         var endDate = DateTime.UtcNow.Date.AddDays(1);
 
-        var messageCounts = context.Messages
+        var messageCounts = db.Messages
             .Where(m => m.Date >= startDate && m.Date < endDate)
             .GroupBy(m => new { m.Date.Date, m.Date.Hour })
             .Select(g => new

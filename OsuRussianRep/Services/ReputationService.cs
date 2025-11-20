@@ -4,22 +4,19 @@ using OsuRussianRep.Models;
 
 namespace OsuRussianRep.Services;
 
-public class ReputationService(IServiceScopeFactory scopeFactory)
+public class ReputationService(AppDbContext db)
 {
     public async Task AddReputationAsync(string targetNickname, string senderNickname, CancellationToken ct = default)
     {
-        using var scope = scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var senderUser = await context.ChatUsers
+        var senderUser = await db.ChatUsers
             .FirstAsync(u => u.Nickname == senderNickname, cancellationToken: ct);
 
-        var targetUser = await context.ChatUsers
+        var targetUser = await db.ChatUsers
             .FirstOrDefaultAsync(u => u.Nickname == targetNickname, cancellationToken: ct);
 
         if (senderNickname != "dixxew")
             if (senderUser.LastUsedAddRep != null)
-                if (DateTime.Now - senderUser.LastUsedAddRep > new TimeSpan(1, 0, 0))
+                if (DateTime.UtcNow - senderUser.LastUsedAddRep > new TimeSpan(1, 0, 0))
                     senderUser.LastUsedAddRep = DateTime.UtcNow;
                 else return;
             else
@@ -35,7 +32,7 @@ public class ReputationService(IServiceScopeFactory scopeFactory)
                 LastRepTime = DateTime.UtcNow
             };
 
-            context.ChatUsers.Add(targetUser);
+            db.ChatUsers.Add(targetUser);
         }
         else
         {
@@ -44,18 +41,15 @@ public class ReputationService(IServiceScopeFactory scopeFactory)
             targetUser.LastRepTime = DateTime.UtcNow;
         }
 
-        await context.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(ct);
     }
 
     public async Task RemoveReputationAsync(string targetNickname, string senderNickname, CancellationToken ct = default)
     {
-        using var scope = scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var senderUser = await context.ChatUsers
+        var senderUser = await db.ChatUsers
             .FirstAsync(u => u.Nickname == senderNickname, cancellationToken: ct);
 
-        var targetUser = await context.ChatUsers
+        var targetUser = await db.ChatUsers
             .FirstOrDefaultAsync(u => u.Nickname == targetNickname, cancellationToken: ct);
 
         if (senderNickname != "dixxew")
@@ -76,7 +70,7 @@ public class ReputationService(IServiceScopeFactory scopeFactory)
                 LastRepTime = DateTime.UtcNow
             };
 
-            context.ChatUsers.Add(targetUser);
+            db.ChatUsers.Add(targetUser);
         }
         else
         {
@@ -85,7 +79,7 @@ public class ReputationService(IServiceScopeFactory scopeFactory)
             targetUser.LastRepTime = DateTime.UtcNow;
         }
 
-        await context.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(ct);
     }
 }
 

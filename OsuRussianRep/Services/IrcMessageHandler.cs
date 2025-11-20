@@ -6,9 +6,6 @@ using OsuRussianRep.Models;
 namespace OsuRussianRep.Services;
 
 public sealed class IrcMessageHandler(
-    ReputationService reputationService,
-    WordStatsService wordsStatsService,
-    OsuService osuService,
     IServiceScopeFactory scopeFactory,
     ILogger<IrcMessageHandler> logger)
 {
@@ -19,7 +16,7 @@ public sealed class IrcMessageHandler(
 
     // -rep-триггеры: "-rep", "-реп"
     private static readonly Regex MinusCmd = new(
-        @"^\s*(-rep|-реп)\s+(\S+)\s*$",
+        @"^\s*(-?rep|-?реп)\s+(\S+)\s*$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex RateWordCmd = new(
@@ -61,7 +58,6 @@ public sealed class IrcMessageHandler(
         }
     }
 
-    // дергай это из IIrcService.PrivateMessageReceived (если надо)
     public Task HandlePrivateMessageAsync(string nickname, string message, CancellationToken ct = default)
     {
         logger.LogInformation("PM от {Nick}: {Message}", nickname, message);
@@ -91,6 +87,9 @@ public sealed class IrcMessageHandler(
 
     private async Task ProcessPlusAsync(string from, string target, CancellationToken ct)
     {
+        var osuService = scopeFactory.CreateScope().ServiceProvider.GetRequiredService<OsuService>();
+        var reputationService = scopeFactory.CreateScope().ServiceProvider.GetRequiredService<ReputationService>();
+        
         if (SameUser(from, target) && !IsBoss(from)) return;
 
         if (!await osuService.CheckUserExists(target, ct))
@@ -105,6 +104,9 @@ public sealed class IrcMessageHandler(
 
 	private async Task ProcessMinusAsync(string from, string target, CancellationToken ct)
 	{
+        var osuService = scopeFactory.CreateScope().ServiceProvider.GetRequiredService<OsuService>();
+        var reputationService = scopeFactory.CreateScope().ServiceProvider.GetRequiredService<ReputationService>();
+        
 		if (SameUser(from, target)) return;
 
 		if (!await osuService.CheckUserExists(target, ct))
@@ -119,6 +121,8 @@ public sealed class IrcMessageHandler(
 
 	private async Task ProcessRateWord(string from, string targetWord, CancellationToken ct)
 	{
+        var wordsStatsService = scopeFactory.CreateScope().ServiceProvider.GetRequiredService<IWordStatsService>();
+        
 		logger.LogInformation("{Nick} оценил слово {Target}", from, targetWord);
 		await wordsStatsService.IncrementWordScore(targetWord, from, ct);
 	}
@@ -145,24 +149,28 @@ public sealed class IrcMessageHandler(
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // один запрос на юзера
-        var user = await db.ChatUsers.FirstOrDefaultAsync(u => u.Nickname == nickname, ct);
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+
+        var user = await db.ChatUsers
+            .FirstOrDefaultAsync(u => u.Nickname == nickname, ct);
+
         if (user is null)
         {
             user = new ChatUser { Nickname = nickname, Reputation = 0 };
             db.ChatUsers.Add(user);
         }
 
-        // одна SaveChanges на всё
         db.Messages.Add(new Message
         {
-            Id = Guid.NewGuid(),  
+            Id = Guid.NewGuid(),
             ChatChannel = channel,
             Text = message,
             User = user,
-            Date = DateTime.UtcNow  
+            Date = DateTime.UtcNow
         });
 
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
+
 }
