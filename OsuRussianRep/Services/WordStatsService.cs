@@ -12,11 +12,14 @@ public interface IWordStatsService
     Task<IReadOnlyList<string>> SuggestWords(string query, int limit, CancellationToken ct);
 }
 
-public sealed class WordStatsService(AppDbContext db) : IWordStatsService
+public sealed class WordStatsService(IServiceScopeFactory scopeFactory) : IWordStatsService
 {
     public async Task<IReadOnlyList<TopWordDto>> GetTopWords(DateOnly from, DateOnly to, int limit, CancellationToken ct)
     {
-        var capped = Math.Clamp(limit, 1, 500);
+		using var scope = scopeFactory.CreateScope();
+		var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+		var capped = Math.Clamp(limit, 1, 500);
 
         var data = await db.WordsInDay.AsNoTracking()
             .Where(wd => wd.Day >= from && wd.Day < to)
@@ -36,7 +39,10 @@ public sealed class WordStatsService(AppDbContext db) : IWordStatsService
 
     public async Task<IReadOnlyList<WordSeriesPointDto>> GetWordTimeseries(string word, DateOnly from, DateOnly to, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(word)) return Array.Empty<WordSeriesPointDto>();
+		using var scope = scopeFactory.CreateScope();
+		var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+		if (string.IsNullOrWhiteSpace(word)) return Array.Empty<WordSeriesPointDto>();
         var lemma = word.ToLowerInvariant();
 
         var wid = await db.Words.AsNoTracking()
@@ -56,7 +62,10 @@ public sealed class WordStatsService(AppDbContext db) : IWordStatsService
 
     public async Task<IReadOnlyList<string>> SuggestWords(string query, int limit, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(query)) return Array.Empty<string>();
+		using var scope = scopeFactory.CreateScope();
+		var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+		if (string.IsNullOrWhiteSpace(query)) return Array.Empty<string>();
         var prefix = query.ToLowerInvariant();
         var capped = Math.Clamp(limit, 1, 50);
 
@@ -76,44 +85,6 @@ public sealed class WordStatsService(AppDbContext db) : IWordStatsService
 
 	internal async Task IncrementWordStat(string targetWord, string senderNickname, CancellationToken ct)
 	{
-        /*
-        var context = db;
-
-		var senderUser = await context.ChatUsers
-			.FirstAsync(u => u.Nickname == senderNickname, cancellationToken: ct);
-
-		var targetWord = await context.ChatUsers
-			.FirstOrDefaultAsync(u => u.Nickname == targetNickname, cancellationToken: ct);
-
-		if (senderNickname != "dixxew")
-			if (senderUser.LastUsedAddRep != null)
-				if (DateTime.Now - senderUser.LastUsedAddRep > new TimeSpan(1, 0, 0))
-					senderUser.LastUsedAddRep = DateTime.UtcNow;
-				else return;
-			else
-				senderUser.LastUsedAddRep = DateTime.UtcNow;
-
-		if (targetUser == null)
-		{
-			targetUser = new ChatUser
-			{
-				Nickname = targetNickname,
-				Reputation = 1,
-				LastRepNickname = senderNickname,
-				LastRepTime = DateTime.UtcNow
-			};
-
-			context.ChatUsers.Add(targetUser);
-		}
-		else
-		{
-			targetUser.Reputation += 1;
-			targetUser.LastRepNickname = senderNickname;
-			targetUser.LastRepTime = DateTime.UtcNow;
-		}
-
-		await context.SaveChangesAsync(ct);
-        */
-        await db.SaveChangesAsync(ct);
+        throw new NotImplementedException();
 	}
 }
