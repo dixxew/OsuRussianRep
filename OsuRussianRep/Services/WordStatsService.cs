@@ -1,6 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using OsuRussianRep.Context;
 using OsuRussianRep.Dtos;
+using OsuRussianRep.Models;
+using OsuRussianRep.Models.ChatStatics;
 
 namespace OsuRussianRep.Services;
 
@@ -11,7 +14,7 @@ public interface IWordStatsService
     Task<IReadOnlyList<string>> SuggestWords(string query, int limit, CancellationToken ct);
 }
 
-public sealed class WordStatsService(AppDbContext db) : IWordStatsService
+public sealed class WordStatsService(IServiceScopeFactory scopeFactory) : IWordStatsService
 {
     private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -27,7 +30,10 @@ public sealed class WordStatsService(AppDbContext db) : IWordStatsService
     
     public async Task<IReadOnlyList<TopWordDto>> GetTopWords(DateOnly from, DateOnly to, int limit, CancellationToken ct)
     {
-        var capped = Math.Clamp(limit, 1, 500);
+		using var scope = scopeFactory.CreateScope();
+		var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+		var capped = Math.Clamp(limit, 1, 500);
 
         var data = await db.WordsInDay.AsNoTracking()
             .Where(wd => wd.Day >= from && wd.Day < to && !StopWords.Contains(wd.Word.Lemma))
@@ -47,7 +53,10 @@ public sealed class WordStatsService(AppDbContext db) : IWordStatsService
 
     public async Task<IReadOnlyList<WordSeriesPointDto>> GetWordTimeseries(string word, DateOnly from, DateOnly to, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(word)) return Array.Empty<WordSeriesPointDto>();
+		using var scope = scopeFactory.CreateScope();
+		var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+		if (string.IsNullOrWhiteSpace(word)) return Array.Empty<WordSeriesPointDto>();
         var lemma = word.ToLowerInvariant();
 
         var wid = await db.Words.AsNoTracking()
@@ -67,7 +76,10 @@ public sealed class WordStatsService(AppDbContext db) : IWordStatsService
 
     public async Task<IReadOnlyList<string>> SuggestWords(string query, int limit, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(query)) return Array.Empty<string>();
+		using var scope = scopeFactory.CreateScope();
+		var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+		if (string.IsNullOrWhiteSpace(query)) return Array.Empty<string>();
         var prefix = query.ToLowerInvariant();
         var capped = Math.Clamp(limit, 1, 50);
 
@@ -84,4 +96,22 @@ public sealed class WordStatsService(AppDbContext db) : IWordStatsService
 
         return await q.Take(capped).ToListAsync(ct);
     }
+
+	internal async Task IncrementWordScore(string targetWord, string senderNickname, CancellationToken ct)
+	{
+		using var scope = scopeFactory.CreateScope();
+		var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+		Word word = await context.Words
+	        .FirstAsync(w => w.Lemma == targetWord, cancellationToken: ct);
+
+        if (word == null)
+        {
+            word = new Word() { Lemma = targetWord };
+            context.Words.Add(word);
+        }
+
+        word.WordScore += 1;
+        await context.SaveChangesAsync(ct);
+	}
 }

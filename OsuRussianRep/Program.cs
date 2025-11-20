@@ -45,6 +45,7 @@ internal class Program
         builder.Services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(cfg.GetConnectionString("DefaultConnection")));
 
+        builder.Services.AddSingleton<WordStatsService>();
         builder.Services.AddSingleton<IrcMessageHandler>();
         builder.Services.AddSingleton<ReputationService>();
         builder.Services.AddSingleton<MessageService>();

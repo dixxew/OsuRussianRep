@@ -7,6 +7,7 @@ namespace OsuRussianRep.Services;
 
 public sealed class IrcMessageHandler(
     ReputationService reputationService,
+    WordStatsService wordsStatsService,
     OsuService osuService,
     IServiceScopeFactory scopeFactory,
     ILogger<IrcMessageHandler> logger)
@@ -20,6 +21,10 @@ public sealed class IrcMessageHandler(
     private static readonly Regex MinusCmd = new(
         @"^\s*(-rep|-реп)\s+(\S+)\s*$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex RateWordCmd = new(
+        @"^\s*(рейт|rate)\s+(\S+)\s*$",
+		RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private const int MaxMessageLength = 200;
     private const string Boss = "dixxew";
@@ -45,6 +50,9 @@ public sealed class IrcMessageHandler(
 
             if (TryParseMinus(message, out var targetMinus))
                 await ProcessMinusAsync(nickname, targetMinus, ct);
+
+            if (TryParseRateWord(message, out var targetWord))
+                await ProcessRateWord(nickname, targetWord, ct);
         }
         catch (OperationCanceledException) { /* игнор */ }
         catch (Exception ex)
@@ -74,6 +82,13 @@ public sealed class IrcMessageHandler(
         return m.Success && target.Length > 0;
     }
 
+    private static bool TryParseRateWord(string msg, out string target)
+    {
+		var m = RateWordCmd.Match(msg);
+		target = m.Success ? m.Groups[2].Value.Trim() : string.Empty;
+		return m.Success && target.Length > 0;
+	}
+
     private async Task ProcessPlusAsync(string from, string target, CancellationToken ct)
     {
         if (SameUser(from, target) && !IsBoss(from)) return;
@@ -88,21 +103,27 @@ public sealed class IrcMessageHandler(
         await reputationService.AddReputationAsync(target, from, ct);
     }
 
-    private async Task ProcessMinusAsync(string from, string target, CancellationToken ct)
-    {
-        if (SameUser(from, target)) return;
+	private async Task ProcessMinusAsync(string from, string target, CancellationToken ct)
+	{
+		if (SameUser(from, target)) return;
 
-        if (!await osuService.CheckUserExists(target, ct))
-        {
-            logger.LogWarning("Цель -rep не найдена: {Target}", target);
-            return;
-        }
+		if (!await osuService.CheckUserExists(target, ct))
+		{
+			logger.LogWarning("Цель -rep не найдена: {Target}", target);
+			return;
+		}
 
-        logger.LogInformation("{Nick} выдал -rep {Target}", from, target);
-        await reputationService.RemoveReputationAsync(target, from, ct);
-    }
+		logger.LogInformation("{Nick} выдал -rep {Target}", from, target);
+		await reputationService.RemoveReputationAsync(target, from, ct);
+	}
 
-    private static bool SameUser(string a, string b)
+	private async Task ProcessRateWord(string from, string targetWord, CancellationToken ct)
+	{
+		logger.LogInformation("{Nick} оценил слово {Target}", from, targetWord);
+		await wordsStatsService.IncrementWordScore(targetWord, from, ct);
+	}
+
+	private static bool SameUser(string a, string b)
         => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
     private static bool IsBoss(string n)
