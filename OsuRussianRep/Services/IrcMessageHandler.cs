@@ -120,7 +120,7 @@ public sealed class IrcMessageHandler(
 	private async Task ProcessRateWord(string from, string targetWord, CancellationToken ct)
 	{
 		logger.LogInformation("{Nick} оценил слово {Target}", from, targetWord);
-		await wordsStatsService.IncrementWordStat(targetWord, from, ct);
+		await wordsStatsService.IncrementWordScore(targetWord, from, ct);
 	}
 
 	private static bool SameUser(string a, string b)

@@ -85,7 +85,7 @@ public sealed class WordStatsService(IServiceScopeFactory scopeFactory) : IWordS
         return await q.Take(capped).ToListAsync(ct);
     }
 
-	internal async Task IncrementWordStat(string targetWord, string senderNickname, CancellationToken ct)
+	internal async Task IncrementWordScore(string targetWord, string senderNickname, CancellationToken ct)
 	{
 		using var scope = scopeFactory.CreateScope();
 		var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
