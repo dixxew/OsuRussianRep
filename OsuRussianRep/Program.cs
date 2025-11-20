@@ -47,6 +47,7 @@ internal class Program
 
         builder.Services.AddSingleton<IrcMessageHandler>();
         builder.Services.AddSingleton<ReputationService>();
+        builder.Services.AddSingleton<WordStatsService>();
         builder.Services.AddSingleton<MessageService>();
         builder.Services.AddSingleton<OsuService>();
         builder.Services.AddSingleton<IIrcService, IrcService>();
