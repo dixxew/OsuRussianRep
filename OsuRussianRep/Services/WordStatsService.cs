@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using OsuRussianRep.Context;
 using OsuRussianRep.Dtos;
+using OsuRussianRep.Models;
 
 namespace OsuRussianRep.Services;
 
@@ -72,4 +73,47 @@ public sealed class WordStatsService(AppDbContext db) : IWordStatsService
 
         return await q.Take(capped).ToListAsync(ct);
     }
+
+	internal async Task IncrementWordStat(string targetWord, string senderNickname, CancellationToken ct)
+	{
+        /*
+        var context = db;
+
+		var senderUser = await context.ChatUsers
+			.FirstAsync(u => u.Nickname == senderNickname, cancellationToken: ct);
+
+		var targetWord = await context.ChatUsers
+			.FirstOrDefaultAsync(u => u.Nickname == targetNickname, cancellationToken: ct);
+
+		if (senderNickname != "dixxew")
+			if (senderUser.LastUsedAddRep != null)
+				if (DateTime.Now - senderUser.LastUsedAddRep > new TimeSpan(1, 0, 0))
+					senderUser.LastUsedAddRep = DateTime.UtcNow;
+				else return;
+			else
+				senderUser.LastUsedAddRep = DateTime.UtcNow;
+
+		if (targetUser == null)
+		{
+			targetUser = new ChatUser
+			{
+				Nickname = targetNickname,
+				Reputation = 1,
+				LastRepNickname = senderNickname,
+				LastRepTime = DateTime.UtcNow
+			};
+
+			context.ChatUsers.Add(targetUser);
+		}
+		else
+		{
+			targetUser.Reputation += 1;
+			targetUser.LastRepNickname = senderNickname;
+			targetUser.LastRepTime = DateTime.UtcNow;
+		}
+
+		await context.SaveChangesAsync(ct);
+        */
+        await db.SaveChangesAsync(ct);
+	}
 }
