@@ -19,16 +19,7 @@ public class UserWordStatsController(IUserWordStatsService stats, AppDbContext d
         if (string.IsNullOrWhiteSpace(nickname))
             return BadRequest("nickname is required");
 
-        var userId = await db.ChatUsers
-            .AsNoTracking()
-            .Where(u => u.Nickname == nickname)
-            .Select(u => (Guid?)u.Id)
-            .FirstOrDefaultAsync(ct);
-
-        if (userId is null)
-            return NotFound($"User '{nickname}' not found");
-
-        var words = await stats.GetTopWordsForUser(userId.Value, limit, ct);
+        var words = await stats.GetTopWordsForUser(nickname, limit, ct);
 
         if (words.Count == 0)
             return NotFound($"No words found for '{nickname}'");

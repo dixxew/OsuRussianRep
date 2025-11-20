@@ -33,7 +33,7 @@ public sealed class WordStatsService(AppDbContext db, IStopWordsProvider stopWor
             .Join(db.Words.AsNoTracking(),
                 agg => agg.WordId,
                 w => w.Id,
-                (agg, w) => new TopWordDto(w.Lemma, agg.Cnt))
+                (agg, w) => new TopWordDto(w.Lemma, agg.Cnt, w.WordScore))
             .ToListAsync(ct);
 
         return data;
