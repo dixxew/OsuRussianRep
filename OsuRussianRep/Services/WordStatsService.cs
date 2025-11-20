@@ -1,7 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using OsuRussianRep.Context;
 using OsuRussianRep.Dtos;
 using OsuRussianRep.Models;
+using OsuRussianRep.Models.ChatStatics;
 
 namespace OsuRussianRep.Services;
 
@@ -85,6 +87,19 @@ public sealed class WordStatsService(IServiceScopeFactory scopeFactory) : IWordS
 
 	internal async Task IncrementWordStat(string targetWord, string senderNickname, CancellationToken ct)
 	{
-        throw new NotImplementedException();
+		using var scope = scopeFactory.CreateScope();
+		var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+		Word word = await context.Words
+	        .FirstAsync(w => w.Lemma == targetWord, cancellationToken: ct);
+
+        if (word == null)
+        {
+            word = new Word() { Lemma = targetWord };
+            context.Words.Add(word);
+        }
+
+        word.WordScore += 1;
+        await context.SaveChangesAsync(ct);
 	}
 }
