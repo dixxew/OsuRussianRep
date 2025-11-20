@@ -23,7 +23,7 @@ public sealed class IrcMessageHandler(
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex RateWordCmd = new(
-        @"^\s* (рейт|rate)\s+(\S+)\s*$",
+        @"^\s*(рейт|rate)\s+(\S+)\s*$",
 		RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private const int MaxMessageLength = 200;
