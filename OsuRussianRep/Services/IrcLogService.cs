@@ -11,7 +11,7 @@ namespace OsuRussianRep.Services;
 /// <summary>
 /// Сервис фоновой обработки IRC-логов с WAL и кэшем WHOIS.
 /// </summary>
-public sealed class IrcLogService : BackgroundService
+public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IIrcService _irc;

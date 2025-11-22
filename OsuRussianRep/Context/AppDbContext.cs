@@ -20,11 +20,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasKey(u => u.Id);
             
         modelBuilder.Entity<ChatUser>()
-            .HasIndex(u => u.Nickname)
-            .IsUnique();
-        
-        modelBuilder.Entity<ChatUser>()
-            .HasIndex(u => u.Nickname)
+            .HasIndex(u => u.OsuUserId)
             .IsUnique();
 
         modelBuilder.Entity<ChatUserNickHistory>(e =>

@@ -48,8 +48,11 @@ internal class Program
         builder.Services.AddSingleton<IrcMessageHandler>();
         builder.Services.AddSingleton<IStopWordsProvider, StopWordsProvider>();
         builder.Services.AddSingleton<IIrcService, IrcService>();
-        builder.Services.AddSingleton<IrcLogService>();
-
+        builder.Services.AddSingleton<IIrcLogEnqueuer>(provider =>
+            (IrcLogService)provider.GetRequiredService<IHostedService>()
+        );
+        
+        builder.Services.AddHostedService<IrcLogService>();
         builder.Services.AddScoped<OsuService>();
         builder.Services.AddScoped<MessageService>();
         builder.Services.AddScoped<ReputationService>();
