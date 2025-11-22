@@ -18,7 +18,7 @@ public interface IIrcService : IDisposable
     event EventHandler<IrcChannelMessageEventArgs>? ChannelMessageReceived;
     event EventHandler<IrcPrivateMessageEventArgs>? PrivateMessageReceived;
     event EventHandler<IrcWhoisMessageEventArgs>? WhoisMessageReceived;
-    void RequestWhois(string msgNick);
+    bool RequestWhois(string msgNick);
 }
 
 public sealed class IrcChannelMessageEventArgs(string channel, string nick, string text) : EventArgs

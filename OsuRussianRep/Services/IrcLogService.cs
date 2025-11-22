@@ -11,7 +11,7 @@ namespace OsuRussianRep.Services;
 /// <summary>
 /// Сервис фоновой обработки IRC-логов с WAL и кэшем WHOIS.
 /// </summary>
-public sealed class IrcLogService :  IDisposable
+public sealed class IrcLogService : IDisposable
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IIrcService _irc;
@@ -19,12 +19,13 @@ public sealed class IrcLogService :  IDisposable
 
     private Timer _timer;
     private readonly TimeSpan _interval = TimeSpan.FromMilliseconds(200);
-    private bool _tickRunning = false; 
+    private bool _tickRunning = false;
 
     /// <summary>
     /// Кэш WHOIS по никам.
     /// </summary>
     private readonly ConcurrentDictionary<string, WhoisInfo> _whois = new(StringComparer.OrdinalIgnoreCase);
+
 // когда в последний раз запрашивали WHOIS по нику
     private readonly ConcurrentDictionary<string, DateTime> _whoisRequested = new(StringComparer.OrdinalIgnoreCase);
 
@@ -45,14 +46,13 @@ public sealed class IrcLogService :  IDisposable
         _logger = logger;
 
         _irc.WhoisMessageReceived += OnWhois;
-        
+
         WhoisRestore();
 
         // запускаем таймер
         _timer = new Timer(Tick, null, _interval, _interval);
-        
     }
-    
+
     private async void Tick(object? _)
     {
         if (_tickRunning) return; // защита от реентрантности
@@ -258,7 +258,7 @@ public sealed class IrcLogService :  IDisposable
     private async Task<List<PendingIrcMessage>> ProcessBatchAsync(List<PendingIrcMessage> batch, CancellationToken ct)
     {
         var failed = new List<PendingIrcMessage>();
-        
+
         foreach (var msg in batch)
         {
             try
@@ -290,10 +290,10 @@ public sealed class IrcLogService :  IDisposable
                 DateTime.UtcNow - lastReq > _whoisRequestCooldown)
             {
                 _logger.LogDebug("Process: WHOIS missing, requesting for {Nick}", msg.Nick);
-                _irc.RequestWhois(msg.Nick);
-                _whoisRequested[msg.Nick] = DateTime.UtcNow;
+                if (_irc.RequestWhois(msg.Nick))
+                    _whoisRequested[msg.Nick] = DateTime.UtcNow;
             }
-            
+
             await Task.Delay(10, ct);
             return false;
         }
@@ -304,8 +304,8 @@ public sealed class IrcLogService :  IDisposable
                 DateTime.UtcNow - lastReq > _whoisRequestCooldown)
             {
                 _logger.LogDebug("Process: WHOIS expired for {Nick}, requesting again", msg.Nick);
-                _irc.RequestWhois(msg.Nick);
-                _whoisRequested[msg.Nick] = DateTime.UtcNow;
+                if (_irc.RequestWhois(msg.Nick))
+                    _whoisRequested[msg.Nick] = DateTime.UtcNow;
             }
 
             await Task.Delay(10, ct);
@@ -320,7 +320,6 @@ public sealed class IrcLogService :  IDisposable
 
         try
         {
-
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -367,6 +366,7 @@ public sealed class IrcLogService :  IDisposable
         {
             _logger.LogError(ex.Message);
         }
+
         return true;
     }
 }

@@ -87,22 +87,25 @@ public sealed class IrcService : IIrcService
         _client.OnJoin += (_, e) => { _logger.LogInformation("IRC joined {Channel}", e.Channel); };
     }
 
-    public void RequestWhois(string msgNick)
+    public bool RequestWhois(string msgNick)
     {
         if (!IsConnected)
         {
             _logger.LogWarning("IRC: attempted WHOIS for {Nick}, but client is NOT connected", msgNick);
-            return;
+            return false;
         }
 
         try
         {
-            _client.RfcWhois(msgNick, msgNick);
+            _client.RfcWhois(msgNick);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "IRC: failed to send WHOIS for {Nick}", msgNick);
+            return false;
         }
+
+        return true;
     }
 
 
