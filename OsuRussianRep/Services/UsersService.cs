@@ -116,7 +116,7 @@ public sealed class UsersService(
         {
             if (osu == null)
             {
-                dto.Avatar = string.Empty;
+                dto.Avatar = $"https://a.ppy.sh/{dto.OsuId}?1753301069.jpeg";;
                 continue;
             }
 
