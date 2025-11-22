@@ -34,9 +34,12 @@ public sealed class IrcLogService : BackgroundService
 
     private readonly TimeSpan _whoisTtl = TimeSpan.FromMinutes(30);
 
-    private const string PendingFile = "pending.jsonl";
-    private const string PendingProcessingFile = "pending.jsonl.processing";
+    private const string PendingFile = "data/pending.jsonl";
+    private const string PendingProcessingFile = "data/pending.jsonl.processing";
+    private const string WhoisFile = "data/whois.jsonl";
+
     private readonly object _fileLock = new();
+    private readonly object _whoisFileLock = new();
 
     public IrcLogService(IServiceScopeFactory scopeFactory, IIrcService irc, ILogger<IrcLogService> logger)
     {
@@ -47,6 +50,7 @@ public sealed class IrcLogService : BackgroundService
         _irc.WhoisMessageReceived += OnWhois;
     }
 
+    #region WAL
 
     /// <summary>
     /// Добавляет запись в WAL файл.
@@ -60,7 +64,6 @@ public sealed class IrcLogService : BackgroundService
             File.AppendAllText(PendingFile, line);
         }
     }
-
 
     /// <summary>
     /// Начинает обработку WAL.
@@ -82,7 +85,6 @@ public sealed class IrcLogService : BackgroundService
         }
     }
 
-
     /// <summary>
     /// Коммит обработки WAL.
     /// </summary>
@@ -94,7 +96,6 @@ public sealed class IrcLogService : BackgroundService
                 File.Delete(PendingProcessingFile);
         }
     }
-
 
     /// <summary>
     /// Откат WAL из <b>PendingProcessingFile</b> -> <b>PendingFile</b>.
@@ -113,7 +114,6 @@ public sealed class IrcLogService : BackgroundService
         }
     }
 
-
     /// <summary>
     /// Восстанавливает очередь из WALs.
     /// </summary>
@@ -128,7 +128,6 @@ public sealed class IrcLogService : BackgroundService
                 ReadFileToQueue(PendingFile);
         }
     }
-
 
     /// <summary>
     /// Загружает файл WAL в очередь.
@@ -146,6 +145,66 @@ public sealed class IrcLogService : BackgroundService
         }
     }
 
+    #endregion
+
+    #region Whois
+
+    /// <summary>
+    /// Сохранить whois.
+    /// </summary>
+    private void PersistWhois()
+    {
+        lock (_whoisFileLock)
+        {
+            var json = JsonSerializer.Serialize(_whois);
+            File.WriteAllText(WhoisFile, json);
+        }
+    }
+
+
+    /// <summary>
+    /// Обработчик WHOIS.
+    /// </summary>
+    private void OnWhois(object? s, IrcWhoisMessageEventArgs e)
+    {
+        long? osuId = null;
+        var url = e.ProfileUrl;
+        var last = url.LastIndexOf('/') + 1;
+        if (last > 0 && long.TryParse(url[last..], out var parsed))
+            osuId = parsed;
+
+        var info = new WhoisInfo
+        {
+            OsuUserId = osuId,
+            ProfileUrl = url,
+            Updated = DateTime.UtcNow,
+            Nick = e.Nick // ← если нужно сохранять
+        };
+
+        _whois[e.Nick] = info;
+        PersistWhois();
+    }
+
+    /// <summary>
+    /// Восстанавливает whois из файла.
+    /// </summary>
+    private void WhoisRestore()
+    {
+        if (!File.Exists(WhoisFile))
+            return;
+
+        var json = File.ReadAllText(WhoisFile);
+        var dict = JsonSerializer.Deserialize<Dictionary<string, WhoisInfo>>(json);
+
+        if (dict == null)
+            return;
+
+        foreach (var kv in dict)
+            if (!kv.Value.Expired(_whoisTtl))
+                _whois[kv.Key] = kv.Value;
+    }
+
+    #endregion
 
     /// <summary>
     /// Добавляет сообщение IRC в очередь и WAL.
@@ -166,30 +225,11 @@ public sealed class IrcLogService : BackgroundService
 
 
     /// <summary>
-    /// Обработчик WHOIS.
-    /// </summary>
-    private void OnWhois(object? s, IrcWhoisMessageEventArgs e)
-    {
-        long? osuId = null;
-        var url = e.ProfileUrl;
-        var last = url.LastIndexOf('/') + 1;
-        if (last > 0 && long.TryParse(url[last..], out var parsed))
-            osuId = parsed;
-
-        _whois[e.Nick] = new WhoisInfo
-        {
-            OsuUserId = osuId,
-            ProfileUrl = url,
-            Updated = DateTime.UtcNow
-        };
-    }
-
-
-    /// <summary>
     /// Основная фоновая логика сервиса.
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
+        WhoisRestore();
         WalRestore();
         WalStartProcessing();
 
@@ -337,6 +377,11 @@ public sealed class WhoisInfo
     /// Дата обновления WHOIS.
     /// </summary>
     public DateTime Updated { get; set; }
+
+    /// <summary>
+    /// Ник пользователя.
+    /// </summary>
+    public string Nick { get; set; }
 
 
     /// <summary>

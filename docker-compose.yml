@@ -10,6 +10,7 @@ services:
       - db
     volumes:
       - ./data/osu-cache:/app/osu_cache
+      - ./data/:/app/data
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: ${DB_CONN}
