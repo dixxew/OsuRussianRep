@@ -268,7 +268,6 @@ public sealed class IrcLogService : IDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Ошибка обработки IRC");
                 failed.Add(msg);
             }
         }
@@ -287,7 +286,6 @@ public sealed class IrcLogService : IDisposable
             if (!_whoisRequested.TryGetValue(msg.Nick, out var lastReq) ||
                 DateTime.UtcNow - lastReq > _whoisRequestCooldown)
             {
-                _logger.LogDebug("Process: WHOIS missing, requesting for {Nick}", msg.Nick);
                 if (_irc.RequestWhois(msg.Nick))
                     _whoisRequested[msg.Nick] = DateTime.UtcNow;
             }
@@ -301,7 +299,6 @@ public sealed class IrcLogService : IDisposable
             if (!_whoisRequested.TryGetValue(msg.Nick, out var lastReq) ||
                 DateTime.UtcNow - lastReq > _whoisRequestCooldown)
             {
-                _logger.LogDebug("Process: WHOIS expired for {Nick}, requesting again", msg.Nick);
                 if (_irc.RequestWhois(msg.Nick))
                     _whoisRequested[msg.Nick] = DateTime.UtcNow;
             }
@@ -312,7 +309,6 @@ public sealed class IrcLogService : IDisposable
 
         if (info.OsuUserId is null)
         {
-            _logger.LogWarning("WHOIS has no osuId for {Nick}, skipping", msg.Nick);
             return false;
         }
 
