@@ -17,14 +17,6 @@ public sealed class IrcLogService : BackgroundService
     private readonly IIrcService _irc;
     private readonly ILogger<IrcLogService> _logger;
 
-    /// <summary>
-    /// Очередь сообщений для обработки.
-    /// </summary>
-    private readonly Channel<PendingIrcMessage> _queue = Channel.CreateBounded<PendingIrcMessage>(
-        new BoundedChannelOptions(5000)
-        {
-            FullMode = BoundedChannelFullMode.DropOldest
-        });
 
 
     /// <summary>
@@ -68,6 +60,9 @@ public sealed class IrcLogService : BackgroundService
     /// <summary>
     /// Начинает обработку WAL.
     /// </summary>
+    /// <remarks>
+    /// Переименовыват PendingFile в PendingProcessingFile
+    /// </remarks>
     private void WalStartProcessing()
     {
         lock (_fileLock)
@@ -96,54 +91,37 @@ public sealed class IrcLogService : BackgroundService
                 File.Delete(PendingProcessingFile);
         }
     }
-
-    /// <summary>
-    /// Откат WAL из <b>PendingProcessingFile</b> -> <b>PendingFile</b>.
-    /// </summary>
-    private void WalRollback()
+    
+    private List<PendingIrcMessage> LoadFromWalBatch()
     {
-        lock (_fileLock)
+        var list = new List<PendingIrcMessage>();
+
+        if (!File.Exists(PendingProcessingFile))
+            return list;
+
+        foreach (var line in File.ReadLines(PendingProcessingFile))
         {
-            if (!File.Exists(PendingProcessingFile))
-                return;
-
-            var lines = File.ReadAllText(PendingProcessingFile);
-            File.AppendAllText(PendingFile, lines);
-
-            File.Delete(PendingProcessingFile);
-        }
-    }
-
-    /// <summary>
-    /// Восстанавливает очередь из WALs.
-    /// </summary>
-    private void WalRestore()
-    {
-        lock (_fileLock)
-        {
-            if (File.Exists(PendingProcessingFile))
-                ReadFileToQueue(PendingProcessingFile);
-
-            if (File.Exists(PendingFile))
-                ReadFileToQueue(PendingFile);
-        }
-    }
-
-    /// <summary>
-    /// Загружает файл WAL в очередь.
-    /// </summary>
-    private void ReadFileToQueue(string file)
-    {
-        foreach (var line in File.ReadLines(file))
-        {
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
+            if (string.IsNullOrWhiteSpace(line)) continue;
 
             var msg = JsonSerializer.Deserialize<PendingIrcMessage>(line);
             if (msg != null)
-                _queue.Writer.TryWrite(msg);
+                list.Add(msg);
+        }
+
+        return list;
+    }
+
+    private void RewriteWal(List<PendingIrcMessage> failed)
+    {
+        lock (_fileLock)
+        {
+            using var fs = new StreamWriter(PendingFile, false);
+
+            foreach (var f in failed)
+                fs.WriteLine(JsonSerializer.Serialize(f));
         }
     }
+
 
     #endregion
 
@@ -220,7 +198,6 @@ public sealed class IrcLogService : BackgroundService
         };
 
         WalAppend(msg);
-        _queue.Writer.TryWrite(msg);
     }
 
 
@@ -230,36 +207,49 @@ public sealed class IrcLogService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         WhoisRestore();
-        WalRestore();
-        WalStartProcessing();
-
-        bool ok = false;
-
-        try
+    
+        while (!ct.IsCancellationRequested)
         {
-            await foreach (var msg in _queue.Reader.ReadAllAsync(ct))
+            WalStartProcessing();
+
+            // загрузили пачку из pending.jsonl.processing
+            var batch = LoadFromWalBatch();
+
+            if (batch.Count > 0)
             {
-                try
-                {
-                    ok = await ProcessAsync(msg, ct);
-                }
-                catch (Exception ex)
-                {
-                    ok = false;
-                    _logger.LogWarning(ex, "Ошибка обработки лога IRC");
-                }
+                var failed = await ProcessBatchAsync(batch, ct);
+
+                RewriteWal(failed);
+            }
+
+            WalCommit();
+
+            await Task.Delay(200, ct);
+        }
+    }
+
+
+    private async Task<List<PendingIrcMessage>> ProcessBatchAsync(List<PendingIrcMessage> batch, CancellationToken ct)
+    {
+        var failed = new List<PendingIrcMessage>();
+
+        foreach (var msg in batch)
+        {
+            try
+            {
+                var ok = await ProcessAsync(msg, ct);
+
+                if (!ok)
+                    failed.Add(msg);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Ошибка обработки IRC");
+                failed.Add(msg);
             }
         }
-        catch (Exception ex)
-        {
-            ok = false;
-            _logger.LogError(ex, "Фатальная ошибка в IrcLogService");
-        }
 
-        if (ok)
-            WalCommit();
-        else
-            WalRollback();
+        return failed;
     }
 
 
@@ -272,7 +262,6 @@ public sealed class IrcLogService : BackgroundService
         {
             _irc.RequestWhois(msg.Nick);
             await Task.Delay(10, ct);
-            _queue.Writer.TryWrite(msg);
             return false;
         }
 
