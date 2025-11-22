@@ -18,6 +18,7 @@ internal class Program
 
     private static async Task Main(string[] args)
     {
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
         var builder = WebApplication.CreateBuilder(args);
 
         // 0) Конфиг
@@ -56,8 +57,10 @@ internal class Program
         builder.Services.AddScoped<IUsersService, UsersService>();
         builder.Services.AddScoped<IWordStatsService, WordStatsService>();
         builder.Services.AddScoped<IUserWordStatsService, UserWordStatsService>();
-        builder.Services.AddHostedService<WordFrequencyIngestService>();
         
+        builder.Services.AddHostedService<WordFrequencyIngestService>();
+        builder.Services.AddHostedService<UserOsuSyncBackgroundService>();
+
         builder.Services.AddSingleton<OsuUserCache>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<OsuUserCache>());
         
@@ -132,7 +135,6 @@ internal class Program
         using (var scope = app.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            db.Database.EnsureCreated();
             db.Database.Migrate();
         }
 

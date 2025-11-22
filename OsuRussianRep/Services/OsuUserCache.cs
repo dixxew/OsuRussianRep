@@ -16,7 +16,7 @@ public sealed class OsuUserCache : BackgroundService
     private readonly IServiceProvider _sp;
     private readonly ILogger<OsuUserCache> _log;
     private readonly string _cacheDir;
-    private readonly TimeSpan _ttl = TimeSpan.FromHours(3);
+    private readonly TimeSpan _ttl = TimeSpan.FromHours(6);
     private readonly SemaphoreSlim _rateLimit = new(1, 1);
     private readonly IMapper _mapper;
 
@@ -64,11 +64,12 @@ public sealed class OsuUserCache : BackgroundService
         using var scope = _sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var users = await db.ChatUsers.AsNoTracking()
+        var users = await db.ChatUsers
+            .AsNoTracking()
+            .OrderByDescending(u => u.Messages.Count)
+            .Take(50)
             .Select(u => u.Nickname)
             .ToListAsync(ct);
-
-        _log.LogInformation("Найдено {Count} пользователей в БД", users.Count);
 
         foreach (var name in users)
         {
@@ -101,7 +102,7 @@ public sealed class OsuUserCache : BackgroundService
 
                 // иначе — качаем в фоне
                 _ = Task.Run(() => EnsureUserCachedAsync(name, ct), ct);
-                await Task.Delay(100, ct); // простенький rate-limit
+                await Task.Delay(700, ct); // простенький rate-limit
             }
             catch (Exception ex)
             {
@@ -144,7 +145,7 @@ public sealed class OsuUserCache : BackgroundService
         foreach (var name in expired)
         {
             _ = Task.Run(() => EnsureUserCachedAsync(name, ct), ct);
-            await Task.Delay(100, ct); // простой rate-limit
+            await Task.Delay(700, ct); // простой rate-limit
         }
     }
 
