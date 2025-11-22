@@ -170,10 +170,8 @@ public sealed class IrcLogService : IDisposable
     {
         lock (_fileLock)
         {
-            using var fs = new StreamWriter(PendingFile, false);
-
             foreach (var f in failed)
-                fs.WriteLine(JsonSerializer.Serialize(f));
+                WalAppend(f);
         }
     }
 
@@ -211,7 +209,7 @@ public sealed class IrcLogService : IDisposable
             OsuUserId = osuId,
             ProfileUrl = url,
             Updated = DateTime.UtcNow,
-            Nick = e.Nick // ← если нужно сохранять
+            Nick = e.Nick
         };
 
         _whois[e.Nick] = info;

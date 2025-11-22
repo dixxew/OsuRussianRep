@@ -84,7 +84,11 @@ public sealed class IrcService : IIrcService
             var msg = e.Data.Message;
             PrivateMessageReceived?.Invoke(this, new(from, msg));
         };
-        _client.OnJoin += (_, e) => { _logger.LogInformation("IRC joined {Channel}", e.Channel); };
+        _client.OnJoin += (_, e) =>
+        {
+            _logger.LogInformation("IRC joined {Channel}", e.Channel); 
+            
+        };
     }
 
     public bool RequestWhois(string msgNick)
@@ -97,7 +101,7 @@ public sealed class IrcService : IIrcService
 
         try
         {
-            _client.RfcWhois(msgNick);
+            _client.WriteLine($"WHOIS {msgNick}");
         }
         catch (Exception ex)
         {

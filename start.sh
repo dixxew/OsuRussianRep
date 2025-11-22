@@ -18,7 +18,7 @@ cat > /app/appsettings.json <<EOF
   },
   "Logging": {
     "LogLevel": {
-      "Default": "Information",
+      "Default": "Debug",
       "Microsoft.AspNetCore": "Warning",
       "Microsoft.EntityFrameworkCore": "Warning"
     }
