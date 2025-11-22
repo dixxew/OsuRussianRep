@@ -9,7 +9,7 @@ namespace OsuRussianRep.Services;
 /// Обработчик IRC-сообщений: rep-команды, логирование, служебные реакции.
 /// </summary>
 public sealed class IrcMessageHandler(
-    IIrcLogEnqueuer ircLogEnqueuer,
+    IrcLogService ircLogService,
     IServiceScopeFactory scopeFactory,
     ILogger<IrcMessageHandler> logger)
 {
@@ -48,7 +48,7 @@ public sealed class IrcMessageHandler(
             logger.LogDebug("IRC [{Channel}] {Nick}: {Message}", channel, nickname, message);
 
             if (message.Length <= MaxMessageLength)
-                ircLogEnqueuer.EnqueueMessage(channel, nickname, message, DateTime.UtcNow);
+                ircLogService.EnqueueMessage(channel, nickname, message, DateTime.UtcNow);
 
             if (string.Equals(nickname, Boss, StringComparison.OrdinalIgnoreCase))
                 BossCommand(message);

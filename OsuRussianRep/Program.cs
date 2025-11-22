@@ -49,14 +49,8 @@ internal class Program
         builder.Services.AddSingleton<IrcMessageHandler>();
         builder.Services.AddSingleton<IStopWordsProvider, StopWordsProvider>();
         builder.Services.AddSingleton<IIrcService, IrcService>();
-        builder.Services.AddSingleton<IIrcLogEnqueuer>(sp =>
-        {
-            return sp.GetServices<IHostedService>()
-                .OfType<IrcLogService>()
-                .First();
-        });
+        builder.Services.AddSingleton<IrcLogService>();
         
-        builder.Services.AddHostedService<IrcLogService>();
         builder.Services.AddScoped<OsuService>();
         builder.Services.AddScoped<MessageService>();
         builder.Services.AddScoped<ReputationService>();
@@ -66,7 +60,6 @@ internal class Program
 
             //builder.Services.AddHostedService<WordFrequencyIngestService>();
         builder.Services.AddHostedService<UserOsuSyncBackgroundService>();
-        builder.Services.AddHostedService<IrcLogService>();
 
 
         builder.Services.AddMemoryCache();

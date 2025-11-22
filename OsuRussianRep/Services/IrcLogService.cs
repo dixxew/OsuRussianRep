@@ -11,12 +11,15 @@ namespace OsuRussianRep.Services;
 /// <summary>
 /// Сервис фоновой обработки IRC-логов с WAL и кэшем WHOIS.
 /// </summary>
-public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
+public sealed class IrcLogService :  IDisposable
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IIrcService _irc;
     private readonly ILogger<IrcLogService> _logger;
 
+    private Timer _timer;
+    private readonly TimeSpan _interval = TimeSpan.FromMilliseconds(200);
+    private bool _tickRunning = false; 
 
     /// <summary>
     /// Кэш WHOIS по никам.
@@ -42,7 +45,48 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
         _logger = logger;
 
         _irc.WhoisMessageReceived += OnWhois;
+        
+        WhoisRestore();
+
+        // запускаем таймер
+        _timer = new Timer(Tick, null, _interval, _interval);
+        
     }
+    
+    private async void Tick(object? _)
+    {
+        if (_tickRunning) return; // защита от реентрантности
+        _tickRunning = true;
+
+        try
+        {
+            WalStartProcessing();
+
+            var batch = LoadFromWalBatch();
+            if (batch.Count > 0)
+            {
+                var failed = await ProcessBatchAsync(batch, CancellationToken.None);
+                RewriteWal(failed);
+            }
+
+            WalCommit();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "IrcLogService tick failure");
+        }
+        finally
+        {
+            _tickRunning = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+        _irc.WhoisMessageReceived -= OnWhois;
+    }
+
 
     #region WAL
 
@@ -210,35 +254,6 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
 
         WalAppend(msg);
     }
-
-
-    /// <summary>
-    /// Основная фоновая логика сервиса.
-    /// </summary>
-    protected override async Task ExecuteAsync(CancellationToken ct)
-    {
-        WhoisRestore();
-
-        while (!ct.IsCancellationRequested)
-        {
-            WalStartProcessing();
-
-            // загрузили пачку из pending.jsonl.processing
-            var batch = LoadFromWalBatch();
-
-            if (batch.Count > 0)
-            {
-                var failed = await ProcessBatchAsync(batch, ct);
-
-                RewriteWal(failed);
-            }
-
-            WalCommit();
-
-            await Task.Delay(200, ct);
-        }
-    }
-
 
     private async Task<List<PendingIrcMessage>> ProcessBatchAsync(List<PendingIrcMessage> batch, CancellationToken ct)
     {
