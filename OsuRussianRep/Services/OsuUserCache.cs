@@ -187,7 +187,6 @@ public sealed class OsuUserCache : BackgroundService
         await _rateLimit.WaitAsync(ct);
         try
         {
-            _log.LogDebug("→ Получаю osu юзера {User}", username);
             IUser? user = null;
             try
             {
