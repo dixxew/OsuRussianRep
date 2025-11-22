@@ -18,6 +18,7 @@ internal class Program
 
     private static async Task Main(string[] args)
     {
+        Directory.CreateDirectory("data");
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         var builder = WebApplication.CreateBuilder(args);
 
@@ -56,7 +57,7 @@ internal class Program
         builder.Services.AddScoped<IWordStatsService, WordStatsService>();
         builder.Services.AddScoped<IUserWordStatsService, UserWordStatsService>();
 
-        builder.Services.AddHostedService<WordFrequencyIngestService>();
+            //builder.Services.AddHostedService<WordFrequencyIngestService>();
         builder.Services.AddHostedService<UserOsuSyncBackgroundService>();
         builder.Services.AddHostedService<IrcLogService>();
 
