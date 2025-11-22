@@ -18,7 +18,6 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
     private readonly ILogger<IrcLogService> _logger;
 
 
-
     /// <summary>
     /// Кэш WHOIS по никам.
     /// </summary>
@@ -55,7 +54,10 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
         {
             File.AppendAllText(PendingFile, line);
         }
+
+        _logger.LogDebug("WAL: appended {Nick} / {Channel}: {Text}", msg.Nick, msg.Channel, msg.Text);
     }
+
 
     /// <summary>
     /// Начинает обработку WAL.
@@ -69,13 +71,14 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
         {
             if (File.Exists(PendingProcessingFile))
             {
-                // старый processing лежит → сервис упал → всё обработать как есть
+                _logger.LogWarning("WAL: pending.processing already exists → recovering previous crash");
                 return;
             }
 
             if (File.Exists(PendingFile))
             {
                 File.Move(PendingFile, PendingProcessingFile, overwrite: true);
+                _logger.LogDebug("WAL: moved pending → processing");
             }
         }
     }
@@ -88,10 +91,13 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
         lock (_fileLock)
         {
             if (File.Exists(PendingProcessingFile))
+            {
                 File.Delete(PendingProcessingFile);
+                _logger.LogDebug("WAL: commit complete, processing file deleted");
+            }
         }
     }
-    
+
     private List<PendingIrcMessage> LoadFromWalBatch()
     {
         var list = new List<PendingIrcMessage>();
@@ -108,8 +114,10 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
                 list.Add(msg);
         }
 
+        _logger.LogDebug("WAL: loaded {Count} messages for processing", list.Count);
         return list;
     }
+
 
     private void RewriteWal(List<PendingIrcMessage> failed)
     {
@@ -121,7 +129,6 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
                 fs.WriteLine(JsonSerializer.Serialize(f));
         }
     }
-
 
     #endregion
 
@@ -145,6 +152,7 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
     /// </summary>
     private void OnWhois(object? s, IrcWhoisMessageEventArgs e)
     {
+        _logger.LogDebug("WHOIS received for {Nick}: {Url}", e.Nick, e.ProfileUrl);
         long? osuId = null;
         var url = e.ProfileUrl;
         var last = url.LastIndexOf('/') + 1;
@@ -207,7 +215,7 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         WhoisRestore();
-    
+
         while (!ct.IsCancellationRequested)
         {
             WalStartProcessing();
@@ -232,7 +240,7 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
     private async Task<List<PendingIrcMessage>> ProcessBatchAsync(List<PendingIrcMessage> batch, CancellationToken ct)
     {
         var failed = new List<PendingIrcMessage>();
-
+        
         foreach (var msg in batch)
         {
             try
@@ -258,8 +266,17 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
     /// </summary>
     private async Task<bool> ProcessAsync(PendingIrcMessage msg, CancellationToken ct)
     {
-        if (!_whois.TryGetValue(msg.Nick, out var info) || info.Expired(_whoisTtl))
+        if (!_whois.TryGetValue(msg.Nick, out var info))
         {
+            _logger.LogDebug("Process: WHOIS missing, requesting for {Nick}", msg.Nick);
+            _irc.RequestWhois(msg.Nick);
+            await Task.Delay(10, ct);
+            return false;
+        }
+
+        if (info.Expired(_whoisTtl))
+        {
+            _logger.LogDebug("Process: WHOIS expired for {Nick}, requesting again", msg.Nick);
             _irc.RequestWhois(msg.Nick);
             await Task.Delay(10, ct);
             return false;
@@ -267,9 +284,11 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
 
         if (info.OsuUserId is null)
         {
-            _logger.LogWarning("WHOIS не дал osuId для {Nick}", msg.Nick);
+            _logger.LogWarning("WHOIS has no osuId for {Nick}, skipping", msg.Nick);
             return false;
         }
+
+        _logger.LogDebug("Process: storing message from {Nick} ({UserId})", msg.Nick, info.OsuUserId);
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
