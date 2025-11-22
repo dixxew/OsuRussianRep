@@ -49,9 +49,12 @@ internal class Program
         builder.Services.AddSingleton<IrcMessageHandler>();
         builder.Services.AddSingleton<IStopWordsProvider, StopWordsProvider>();
         builder.Services.AddSingleton<IIrcService, IrcService>();
-        builder.Services.AddSingleton<IIrcLogEnqueuer>(provider =>
-            (IrcLogService)provider.GetRequiredService<IHostedService>()
-        );
+        builder.Services.AddSingleton<IIrcLogEnqueuer>(sp =>
+        {
+            return sp.GetServices<IHostedService>()
+                .OfType<IrcLogService>()
+                .First();
+        });
         
         builder.Services.AddHostedService<IrcLogService>();
         builder.Services.AddScoped<OsuService>();
