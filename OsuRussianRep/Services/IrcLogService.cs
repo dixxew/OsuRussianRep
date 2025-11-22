@@ -22,7 +22,10 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
     /// Кэш WHOIS по никам.
     /// </summary>
     private readonly ConcurrentDictionary<string, WhoisInfo> _whois = new(StringComparer.OrdinalIgnoreCase);
+// когда в последний раз запрашивали WHOIS по нику
+    private readonly ConcurrentDictionary<string, DateTime> _whoisRequested = new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly TimeSpan _whoisRequestCooldown = TimeSpan.FromSeconds(20);
     private readonly TimeSpan _whoisTtl = TimeSpan.FromMinutes(30);
 
     private const string PendingFile = "data/pending.jsonl";
@@ -268,16 +271,28 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
     {
         if (!_whois.TryGetValue(msg.Nick, out var info))
         {
-            _logger.LogDebug("Process: WHOIS missing, requesting for {Nick}", msg.Nick);
-            _irc.RequestWhois(msg.Nick);
+            if (!_whoisRequested.TryGetValue(msg.Nick, out var lastReq) ||
+                DateTime.UtcNow - lastReq > _whoisRequestCooldown)
+            {
+                _logger.LogDebug("Process: WHOIS missing, requesting for {Nick}", msg.Nick);
+                _irc.RequestWhois(msg.Nick);
+                _whoisRequested[msg.Nick] = DateTime.UtcNow;
+            }
+            
             await Task.Delay(10, ct);
             return false;
         }
 
         if (info.Expired(_whoisTtl))
         {
-            _logger.LogDebug("Process: WHOIS expired for {Nick}, requesting again", msg.Nick);
-            _irc.RequestWhois(msg.Nick);
+            if (!_whoisRequested.TryGetValue(msg.Nick, out var lastReq) ||
+                DateTime.UtcNow - lastReq > _whoisRequestCooldown)
+            {
+                _logger.LogDebug("Process: WHOIS expired for {Nick}, requesting again", msg.Nick);
+                _irc.RequestWhois(msg.Nick);
+                _whoisRequested[msg.Nick] = DateTime.UtcNow;
+            }
+
             await Task.Delay(10, ct);
             return false;
         }
@@ -288,49 +303,55 @@ public sealed class IrcLogService : BackgroundService, IIrcLogEnqueuer
             return false;
         }
 
-        _logger.LogDebug("Process: storing message from {Nick} ({UserId})", msg.Nick, info.OsuUserId);
-
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var user = await db.ChatUsers.FirstOrDefaultAsync(u => u.OsuUserId == info.OsuUserId, ct);
-        if (user == null)
+        try
         {
-            user = new ChatUser
+
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var user = await db.ChatUsers.FirstOrDefaultAsync(u => u.OsuUserId == info.OsuUserId, ct);
+            if (user == null)
             {
-                Id = Guid.NewGuid(),
-                Nickname = msg.Nick,
-                OsuUserId = info.OsuUserId,
-                OsuProfileUrl = info.ProfileUrl,
-                LastMessageDate = msg.DateUtc
-            };
-            db.ChatUsers.Add(user);
-        }
-        else
-        {
-            if (!string.Equals(user.Nickname, msg.Nick, StringComparison.OrdinalIgnoreCase))
-            {
-                db.ChatUserNickHistories.Add(new ChatUserNickHistory
+                user = new ChatUser
                 {
-                    ChatUserId = user.Id,
-                    Nickname = user.Nickname
-                });
-                user.Nickname = msg.Nick;
+                    Id = Guid.NewGuid(),
+                    Nickname = msg.Nick,
+                    OsuUserId = info.OsuUserId,
+                    OsuProfileUrl = info.ProfileUrl,
+                    LastMessageDate = msg.DateUtc
+                };
+                db.ChatUsers.Add(user);
+            }
+            else
+            {
+                if (!string.Equals(user.Nickname, msg.Nick, StringComparison.OrdinalIgnoreCase))
+                {
+                    db.ChatUserNickHistories.Add(new ChatUserNickHistory
+                    {
+                        ChatUserId = user.Id,
+                        Nickname = user.Nickname
+                    });
+                    user.Nickname = msg.Nick;
+                }
+
+                user.LastMessageDate = DateTime.UtcNow;
             }
 
-            user.LastMessageDate = DateTime.UtcNow;
+            db.Messages.Add(new Message
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                ChatChannel = msg.Channel,
+                Text = msg.Text,
+                Date = msg.DateUtc
+            });
+
+            await db.SaveChangesAsync(ct);
         }
-
-        db.Messages.Add(new Message
+        catch (Exception ex)
         {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            ChatChannel = msg.Channel,
-            Text = msg.Text,
-            Date = msg.DateUtc
-        });
-
-        await db.SaveChangesAsync(ct);
+            _logger.LogError(ex.Message);
+        }
         return true;
     }
 }
