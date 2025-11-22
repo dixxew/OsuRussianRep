@@ -26,6 +26,7 @@ public sealed class IrcService : IIrcService
     public event EventHandler? Disconnected;
     public event EventHandler<IrcChannelMessageEventArgs>? ChannelMessageReceived;
     public event EventHandler<IrcPrivateMessageEventArgs>? PrivateMessageReceived;
+    public event EventHandler<IrcWhoisMessageEventArgs>? WhoisMessageReceived;
 
     public bool IsConnected => _client.IsConnected;
 
@@ -33,22 +34,20 @@ public sealed class IrcService : IIrcService
     {
         _logger = logger;
 
-        _server   = config.GetValue("IrcConnection:Server", "");
-        _port     = config.GetValue("IrcConnection:Port", 6667);
-        _useSsl   = config.GetValue("IrcConnection:UseSsl", false);
-        _channel  = config.GetValue("IrcConnection:Channel", "");
+        _server = config.GetValue("IrcConnection:Server", "");
+        _port = config.GetValue("IrcConnection:Port", 6667);
+        _useSsl = config.GetValue("IrcConnection:UseSsl", false);
+        _channel = config.GetValue("IrcConnection:Channel", "");
         _nickname = config.GetValue("IrcConnection:Nickname", "");
         _password = config.GetValue<string?>("IrcConnection:Password", null);
 
-        // базовые настройки клиента
         _client.Encoding = Encoding.UTF8;
         _client.SendDelay = 200;
-        _client.ActiveChannelSyncing = true; // синхронизирует списки юзеров/каналов
-        _client.AutoReconnect = false;       // сами рулим бэкоффом
+        _client.ActiveChannelSyncing = true;
+        _client.AutoReconnect = false;
         _client.AutoRelogin = false;
         _client.AutoRejoin = false;
 
-        // события
         _client.OnConnected += (_, __) =>
         {
             _logger.LogInformation("IRC connected {Server}:{Port}", _server, _port);
@@ -58,31 +57,42 @@ public sealed class IrcService : IIrcService
         _client.OnError += (_, e) => _logger.LogWarning("IRC client error: {Error}", e.ErrorMessage);
         _client.OnRegistered += OnRegistered;
 
-        // чтобы видеть сырой трафик
         _client.OnRawMessage += (_, e) =>
         {
-            // e.Data.RawMessage уже содержит "<...>"
-            //_logger.LogDebug("{Raw}", e.Data.RawMessage);
+            if (e.Data.ReplyCode == ReplyCode.WhoIsUser)
+            {
+                var args = e.Data.RawMessageArray;
+
+                var nick = args[3];
+                var profileUrl = args[4];
+
+                WhoisMessageReceived?.Invoke(this, new(nick, profileUrl));
+            }
         };
 
-        // сообщения из каналов и в личку (подпишем заранее — они глобальные)
         _client.OnChannelMessage += (_, e) =>
         {
             var ch = e.Data.Channel;
             var from = e.Data.Nick;
             var msg = e.Data.Message;
-            ChannelMessageReceived?.Invoke(this, new IrcChannelMessageEventArgs(ch, from, msg));
+
+            ChannelMessageReceived?.Invoke(this, new(ch, from, msg));
         };
         _client.OnQueryMessage += (_, e) =>
         {
             var from = e.Data.Nick;
             var msg = e.Data.Message;
-            PrivateMessageReceived?.Invoke(this, new IrcPrivateMessageEventArgs(from, msg));
+            PrivateMessageReceived?.Invoke(this, new(from, msg));
         };
-        _client.OnJoin += (_, e) =>
+        _client.OnJoin += (_, e) => { _logger.LogInformation("IRC joined {Channel}", e.Channel); };
+    }
+
+    public void RequestWhois(string msgNick)
+    {
+        if (IsConnected)
         {
-            _logger.LogInformation("IRC joined {Channel}", e.Channel);
-        };
+            _client.RfcWhois(msgNick);
+        }
     }
 
     private static string NormalizeChannel(string ch)
@@ -100,13 +110,10 @@ public sealed class IrcService : IIrcService
         {
             _logger.LogInformation("IRC connecting to {Server}:{Port} as {Nick}", _server, _port, _nickname);
 
-            // коннектим сокет
             _client.Connect(_server, _port);
 
-            // логинимся (nick, realname, usermode, username, password)
             _client.Login(_nickname, _nickname, 0, _nickname, _password);
 
-            // слушаем события в бэкграунде
             _listenCts?.Cancel();
             _listenCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var listenToken = _listenCts.Token;
@@ -115,7 +122,7 @@ public sealed class IrcService : IIrcService
             {
                 try
                 {
-                    _client.Listen(); // блокирует; кидает исключение при разрыве
+                    _client.Listen();
                 }
                 catch (Exception ex)
                 {
@@ -148,11 +155,21 @@ public sealed class IrcService : IIrcService
                 _client.Disconnect();
             }
         }
-        catch { /* ignore */ }
+        catch
+        {
+            /* ignore */
+        }
         finally
         {
-            try { _listenCts?.Cancel(); } catch { }
+            try
+            {
+                _listenCts?.Cancel();
+            }
+            catch
+            {
+            }
         }
+
         return Task.CompletedTask;
     }
 
@@ -207,7 +224,6 @@ public sealed class IrcService : IIrcService
         if (!_registeredTcs.Task.IsCompleted)
             _registeredTcs.TrySetResult();
 
-        // авто-джоин всех, что просили
         foreach (var ch in _autoJoin.ToArray())
         {
             _logger.LogInformation("IRC: auto-join {Channel}", ch);
@@ -238,14 +254,16 @@ public sealed class IrcService : IIrcService
         _reconnectAttempt++;
         var delay = TimeSpan.FromMilliseconds(
             Math.Min(_reconnectMax.TotalMilliseconds,
-                     _reconnectMin.TotalMilliseconds * Math.Pow(2, _reconnectAttempt)));
+                _reconnectMin.TotalMilliseconds * Math.Pow(2, _reconnectAttempt)));
         _logger.LogInformation("IRC: reconnect in {Delay}", delay);
         try
         {
             await Task.Delay(delay, ct);
             await ConnectAsync(ct);
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private void EnsureRegistered()

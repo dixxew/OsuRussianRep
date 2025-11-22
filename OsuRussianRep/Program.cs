@@ -21,27 +21,24 @@ internal class Program
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         var builder = WebApplication.CreateBuilder(args);
 
-        // 0) Конфиг
         builder.Configuration.AddEnvironmentVariables();
         var cfg = builder.Configuration;
 
-        // 1) Логи (минимализм)
         builder.Logging.ClearProviders();
         builder.Logging.AddConsole();
         builder.Logging.SetMinimumLevel(LogLevel.Debug);
         builder.Logging.AddFilter("OsuSharp", LogLevel.None);
         builder.Logging.AddFilter("OsuSharp.Extensions", LogLevel.None);
-        builder.Logging.AddFilter("OsuSharp.Net", LogLevel.None);  
+        builder.Logging.AddFilter("OsuSharp.Net", LogLevel.None);
 
-        // 2) DI
         builder.Services.AddAutoMapper(typeof(MappingProfile).Assembly);
         builder.Services.AddOpenApi();
         builder.Services.AddControllers();
-        
+
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(c =>
         {
-            c.SwaggerDoc("v1", new OpenApiInfo { Title = "OsuRussianRep API", Version = "v1" });
+            c.SwaggerDoc("v1", new OpenApiInfo {Title = "OsuRussianRep API", Version = "v1"});
         });
 
         builder.Services.AddDbContext<AppDbContext>(options =>
@@ -50,20 +47,22 @@ internal class Program
         builder.Services.AddSingleton<IrcMessageHandler>();
         builder.Services.AddSingleton<IStopWordsProvider, StopWordsProvider>();
         builder.Services.AddSingleton<IIrcService, IrcService>();
-        
+        builder.Services.AddSingleton<IrcLogService>();
+
         builder.Services.AddScoped<OsuService>();
         builder.Services.AddScoped<MessageService>();
         builder.Services.AddScoped<ReputationService>();
         builder.Services.AddScoped<IUsersService, UsersService>();
         builder.Services.AddScoped<IWordStatsService, WordStatsService>();
         builder.Services.AddScoped<IUserWordStatsService, UserWordStatsService>();
-        
+
         builder.Services.AddHostedService<WordFrequencyIngestService>();
         builder.Services.AddHostedService<UserOsuSyncBackgroundService>();
+        builder.Services.AddHostedService<IrcLogService>();
 
         builder.Services.AddSingleton<OsuUserCache>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<OsuUserCache>());
-        
+
         builder.Services.AddMemoryCache();
 
         builder.Host.ConfigureOsuSharp((_, options) =>
@@ -83,21 +82,18 @@ internal class Program
                     .AllowAnyHeader());
         });
 
-        // 3) App
         var app = builder.Build();
 
-        // Важно: прокси-хедеры максимально рано
         app.UseForwardedHeaders(new ForwardedHeadersOptions
         {
             ForwardedHeaders = ForwardedHeaders.XForwardedFor |
                                ForwardedHeaders.XForwardedProto |
                                ForwardedHeaders.XForwardedHost,
             ForwardLimit = 1,
-            // иначе игнор из-за не-loopback
-            KnownNetworks = { }, 
+            KnownNetworks = { },
             KnownProxies = { }
         });
-        
+
         app.Use((ctx, next) =>
         {
             // если nginx передал префикс — уважаем его
@@ -123,8 +119,8 @@ internal class Program
         {
             options
                 .WithTitle("OsuRussianRep API")
-                .WithTheme(ScalarTheme.DeepSpace) // необязательно, просто для красоты
-                .WithOpenApiRoutePattern("/api/swagger/v1/swagger.json"); // 👈 вот это обязательно
+                .WithTheme(ScalarTheme.DeepSpace)
+                .WithOpenApiRoutePattern("/api/swagger/v1/swagger.json");
         });
 
         app.UseCors(CorsPolicyAny);
@@ -138,47 +134,55 @@ internal class Program
             db.Database.Migrate();
         }
 
-        // IRC lifecycle: коннектим при старте, отключаемся при стопе
-         var irc = app.Services.GetRequiredService<IIrcService>();
-         var handler = app.Services.GetRequiredService<IrcMessageHandler>();
-         var lifetime = app.Lifetime;
-        
-         irc.ChannelMessageReceived += async (_, e) =>
-         {
-             await handler.HandleChannelMessageAsync(e.Channel, e.Nick, e.Text);
-         };
-         irc.PrivateMessageReceived += async (_, e) =>
-         {
-             await handler.HandlePrivateMessageAsync(e.Nick, e.Text);
-         };
-        
-         lifetime.ApplicationStarted.Register(async void () =>
-         {
-             try
-             {
-                 await irc.ConnectAsync();
-                 await irc.JoinAsync(cfg["IrcConnection:Channel"]);
-             }
-             catch (Exception ex)
-             {
-                 app.Logger.LogError(ex, "IRC: failed to connect on start");
-             }
-         });
-        
-         lifetime.ApplicationStopping.Register(async void () =>
-         {
-             try { await irc.DisconnectAsync("shutdown"); }
-             catch { /* ignore */ }
+        var irc = app.Services.GetRequiredService<IIrcService>();
+        var handler = app.Services.GetRequiredService<IrcMessageHandler>();
+        var lifetime = app.Lifetime;
+
+        irc.ChannelMessageReceived += async (_, e)
+            => await handler.HandleChannelMessageAsync(e.Channel, e.Nick, e.Text);
+        irc.PrivateMessageReceived += async (_, e)
+            =>
+        {
+            await handler.HandlePrivateMessageAsync(e.Nick, e.Text);
+        };
+        irc.WhoisMessageReceived += async (_, e)
+            =>
+        {
+            await handler.HandleWhoisAsync(e.Nick, e.ProfileUrl);
+        };
+
+        lifetime.ApplicationStarted.Register(async void () =>
+        {
+            try
+            {
+                await irc.ConnectAsync();
+                await irc.JoinAsync(cfg["IrcConnection:Channel"]);
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogError(ex, "IRC: failed to connect on start");
+            }
+        });
+
+        lifetime.ApplicationStopping.Register(async void () =>
+        {
+            try
+            {
+                await irc.DisconnectAsync("shutdown");
+            }
+            catch
+            {
+                /* ignore */
+            }
         });
 
         app.Run();
 
-        // --- locals ---
         static void ApplyForwardedServerUrl(OpenApiDocument swagger, HttpRequest req)
         {
-            var scheme = (string?)req.Headers["X-Forwarded-Proto"] ?? req.Scheme;
-            var host = (string?)req.Headers["X-Forwarded-Host"] ?? req.Host.Value;
-            swagger.Servers = new[] { new OpenApiServer { Url = $"{scheme}://{host}" } }.ToList();
+            var scheme = (string?) req.Headers["X-Forwarded-Proto"] ?? req.Scheme;
+            var host = (string?) req.Headers["X-Forwarded-Host"] ?? req.Host.Value;
+            swagger.Servers = new[] {new OpenApiServer {Url = $"{scheme}://{host}"}}.ToList();
         }
     }
 }
