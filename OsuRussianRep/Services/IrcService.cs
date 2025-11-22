@@ -89,11 +89,22 @@ public sealed class IrcService : IIrcService
 
     public void RequestWhois(string msgNick)
     {
-        if (IsConnected)
+        if (!IsConnected)
         {
-            _client.RfcWhois(msgNick);
+            _logger.LogWarning("IRC: attempted WHOIS for {Nick}, but client is NOT connected", msgNick);
+            return;
+        }
+
+        try
+        {
+            _client.RfcWhois(msgNick, msgNick);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "IRC: failed to send WHOIS for {Nick}", msgNick);
         }
     }
+
 
     private static string NormalizeChannel(string ch)
         => string.IsNullOrWhiteSpace(ch) ? ch : (ch.StartsWith('#') ? ch : "#" + ch);
