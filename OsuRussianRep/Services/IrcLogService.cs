@@ -101,8 +101,6 @@ public sealed class IrcLogService : IDisposable
         {
             File.AppendAllText(PendingFile, line);
         }
-
-        _logger.LogDebug("WAL: appended {Nick} / {Channel}: {Text}", msg.Nick, msg.Channel, msg.Text);
     }
 
 
@@ -118,14 +116,12 @@ public sealed class IrcLogService : IDisposable
         {
             if (File.Exists(PendingProcessingFile))
             {
-                _logger.LogWarning("WAL: pending.processing already exists → recovering previous crash");
                 return;
             }
 
             if (File.Exists(PendingFile))
             {
                 File.Move(PendingFile, PendingProcessingFile, overwrite: true);
-                _logger.LogDebug("WAL: moved pending → processing");
             }
         }
     }
@@ -140,7 +136,6 @@ public sealed class IrcLogService : IDisposable
             if (File.Exists(PendingProcessingFile))
             {
                 File.Delete(PendingProcessingFile);
-                _logger.LogDebug("WAL: commit complete, processing file deleted");
             }
         }
     }
@@ -161,7 +156,6 @@ public sealed class IrcLogService : IDisposable
                 list.Add(msg);
         }
 
-        _logger.LogDebug("WAL: loaded {Count} messages for processing", list.Count);
         return list;
     }
 
