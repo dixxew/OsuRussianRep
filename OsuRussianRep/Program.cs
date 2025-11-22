@@ -45,6 +45,7 @@ internal class Program
         builder.Services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(cfg.GetConnectionString("DefaultConnection")));
 
+        builder.Services.AddSingleton<OsuUserCache>();
         builder.Services.AddSingleton<IrcMessageHandler>();
         builder.Services.AddSingleton<IStopWordsProvider, StopWordsProvider>();
         builder.Services.AddSingleton<IIrcService, IrcService>();
@@ -64,8 +65,6 @@ internal class Program
         builder.Services.AddHostedService<UserOsuSyncBackgroundService>();
         builder.Services.AddHostedService<IrcLogService>();
 
-        builder.Services.AddSingleton<OsuUserCache>();
-        builder.Services.AddHostedService(sp => sp.GetRequiredService<OsuUserCache>());
 
         builder.Services.AddMemoryCache();
 
