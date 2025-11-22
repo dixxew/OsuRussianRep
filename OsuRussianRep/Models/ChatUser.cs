@@ -11,4 +11,8 @@ public class ChatUser
     public string? LastRepNickname { get; set; }
     public ICollection<Message>? Messages { get; set; }
     public DateTime LastMessageDate { get; set; } = DateTime.UtcNow;
+    public string? OsuProfileUrl { get; set; }
+    public long? OsuUserId { get; set; }
+    
+    public ICollection<ChatUserNickHistory>? OldNicknames { get; set; }
 }

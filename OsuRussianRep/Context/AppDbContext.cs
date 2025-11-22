@@ -7,6 +7,7 @@ namespace OsuRussianRep.Context;
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<ChatUser> ChatUsers { get; set; }
+    public DbSet<ChatUserNickHistory> ChatUserNickHistories { get; set; }
     public DbSet<Message> Messages { get; set; }
     public DbSet<Word> Words { get; set; }
     public DbSet<WordDay> WordsInDay { get; set; }
@@ -16,9 +17,28 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ChatUser>()
+            .HasKey(u => u.Id);
+            
+        modelBuilder.Entity<ChatUser>()
+            .HasIndex(u => u.Nickname)
+            .IsUnique();
+        
+        modelBuilder.Entity<ChatUser>()
             .HasIndex(u => u.Nickname)
             .IsUnique();
 
+        modelBuilder.Entity<ChatUserNickHistory>(e =>
+        {
+            // составной ключ
+            e.HasKey(x => new { x.ChatUserId, x.Nickname });
+
+            // связь: один ChatUser -> много ChatUserNickHistory
+            e.HasOne(x => x.ChatUser)
+                .WithMany(u => u.OldNicknames)
+                .HasForeignKey(x => x.ChatUserId)
+                .OnDelete(DeleteBehavior.Cascade); // хочешь Restrict — поменяй
+        });
+        
         modelBuilder.Entity<Message>(e =>
         {
             e.HasKey(x => x.Seq);                              // PK = Seq
