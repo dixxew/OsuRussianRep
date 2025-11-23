@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -20,7 +21,8 @@ public sealed class OsuUserCache : BackgroundService
     private readonly SemaphoreSlim _rateLimit = new(1, 1);
     private readonly IMapper _mapper;
 
-    public OsuUserCache(IOsuClient osuClient, IMemoryCache mem, IServiceProvider sp, ILogger<OsuUserCache> log, IMapper mapper)
+    public OsuUserCache(IOsuClient osuClient, IMemoryCache mem, IServiceProvider sp, ILogger<OsuUserCache> log,
+        IMapper mapper)
     {
         _osuClient = osuClient;
         _mem = mem;
@@ -147,6 +149,22 @@ public sealed class OsuUserCache : BackgroundService
             _ = Task.Run(() => EnsureUserCachedAsync(name, ct), ct);
             await Task.Delay(700, ct); // простой rate-limit
         }
+    }
+
+    public bool TryGetFromMemory(string username, [NotNullWhen(true)] out CachedOsuUserDto? user)
+    {
+        var res = false;
+        user = null;
+
+        if (string.IsNullOrWhiteSpace(username))
+            return false;
+
+        res = _mem.TryGetValue(username, out var cached);
+        
+        if (res)
+            user = _mapper.Map<CachedOsuUserDto>(cached);
+        
+        return res;
     }
 
     public async Task<CachedOsuUserDto?> GetUserAsync(string username, CancellationToken ct)

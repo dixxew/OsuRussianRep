@@ -16,6 +16,7 @@ public sealed class IrcLogService : IDisposable
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IIrcService _irc;
     private readonly ILogger<IrcLogService> _logger;
+    private readonly OsuUserCache _osuUserCache;
 
     private Timer _timer;
     private readonly TimeSpan _interval = TimeSpan.FromMilliseconds(200);
@@ -39,11 +40,13 @@ public sealed class IrcLogService : IDisposable
     private readonly object _fileLock = new();
     private readonly object _whoisFileLock = new();
 
-    public IrcLogService(IServiceScopeFactory scopeFactory, IIrcService irc, ILogger<IrcLogService> logger)
+    public IrcLogService(IServiceScopeFactory scopeFactory, IIrcService irc, ILogger<IrcLogService> logger,
+        OsuUserCache osuUserCache)
     {
         _scopeFactory = scopeFactory;
         _irc = irc;
         _logger = logger;
+        _osuUserCache = osuUserCache;
 
         _irc.WhoisMessageReceived += OnWhois;
 
@@ -275,31 +278,77 @@ public sealed class IrcLogService : IDisposable
     /// </summary>
     private async Task<bool> ProcessAsync(PendingIrcMessage msg, CancellationToken ct)
     {
-        if (!_whois.TryGetValue(msg.Nick, out var info))
+        var now = DateTime.UtcNow;
+        WhoisInfo? info;
+
+        // 1️⃣ Пытаемся взять актуальный WHOIS
+        if (_whois.TryGetValue(msg.Nick, out var existing) && !existing.Expired(_whoisTtl))
         {
-            if (!_whoisRequested.TryGetValue(msg.Nick, out var lastReq) ||
-                DateTime.UtcNow - lastReq > _whoisRequestCooldown)
-            {
-                if (_irc.RequestWhois(msg.Nick))
-                    _whoisRequested[msg.Nick] = DateTime.UtcNow;
-            }
-
-            await Task.Delay(10, ct);
-            return false;
+            info = existing;
         }
-
-        if (info.Expired(_whoisTtl))
+        else
         {
-            if (!_whoisRequested.TryGetValue(msg.Nick, out var lastReq) ||
-                DateTime.UtcNow - lastReq > _whoisRequestCooldown)
-            {
-                if (_irc.RequestWhois(msg.Nick))
-                    _whoisRequested[msg.Nick] = DateTime.UtcNow;
-            }
+            // WHOIS нет или протух
+            info = null;
 
-            await Task.Delay(10, ct);
-            return false;
+            var hasReq = _whoisRequested.TryGetValue(msg.Nick, out var lastReq);
+            var sinceReq = hasReq ? now - lastReq : (TimeSpan?) null;
+
+            if (!hasReq || sinceReq > _whoisRequestCooldown)
+            {
+                if (_osuUserCache.TryGetFromMemory(msg.Nick, out var cachedUser))
+                {
+                    info = new WhoisInfo
+                    {
+                        Nick = msg.Nick,
+                        OsuUserId = cachedUser.Id,
+                        ProfileUrl = $"https://osu.ppy.sh/users/{cachedUser.Id}",
+                        Updated = now
+                    };
+
+                    _whois[msg.Nick] = info;
+                    PersistWhois();
+                }
+                else if (!hasReq)
+                {
+                    // Первый раз видим ник: osu-кэш пустой → запрашиваем WHOIS
+                    if (_irc.RequestWhois(msg.Nick))
+                        _whoisRequested[msg.Nick] = now;
+
+                    await Task.Delay(10, ct);
+                    return false;
+                }
+                else
+                {
+                    // WHOIS уже запрашивали, cooldown прошёл, ответа так и нет → API
+                    var fromApi = await _osuUserCache.GetUserAsync(msg.Nick, ct);
+                    if (fromApi == null)
+                    {
+                        await Task.Delay(10, ct);
+                        return false;
+                    }
+
+                    info = new WhoisInfo
+                    {
+                        Nick = msg.Nick,
+                        OsuUserId = fromApi.Id,
+                        ProfileUrl = $"https://osu.ppy.sh/users/{fromApi.Id}",
+                        Updated = now
+                    };
+
+                    _whois[msg.Nick] = info;
+                    PersistWhois();
+                }
+            }
+            else
+            {
+                // WHOIS уже запрашивали недавно (< cooldown), ответа ещё нет — ждём
+                await Task.Delay(10, ct);
+                return false;
+            }
         }
+        
+        _whoisRequested.TryRemove(msg.Nick, out _);
 
         if (info.OsuUserId is null)
         {
