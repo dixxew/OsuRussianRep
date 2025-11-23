@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using OsuRussianRep.Context;
+using OsuRussianRep.Dtos;
 using OsuRussianRep.Models;
 
 namespace OsuRussianRep.Services;
@@ -96,4 +97,41 @@ public class MessageService(AppDbContext db, ILogger<MessageService> logger)
         logger.LogDebug("Получена почасовая статистика сообщений (среднее) за 30 дней");
         return hourlyAverageMessageCounts;
     }
+    
+    public async Task<LastMessagesDto> GetLastMessagesAsync(int offset, int limit)
+    {
+        if (limit <= 0) limit = 50;
+        if (offset < 0) offset = 0;
+
+        // Считаем всего записей
+        var total = await db.Messages.CountAsync();
+
+        // Чтобы offset работал, сортируем по возрастанию,
+        // но выбираем самые последние total - offset - limit… ну ты понял.
+        var msgs = await db.Messages
+            .OrderBy(m => m.Seq)
+            .Skip(offset)
+            .Take(limit)
+            .Select(m => new MessageDto
+            {
+                Seq = m.Seq,
+                Text = m.Text,
+                Date = m.Date,
+                ChatChannel = m.ChatChannel,
+                UserId = m.UserId
+            })
+            .ToListAsync();
+
+        // Клиенту удобнее отдавать с конца
+        msgs.Reverse();
+
+        return new LastMessagesDto
+        {
+            Offset = offset + msgs.Count,
+            Limit = limit,
+            Messages = msgs
+        };
+    }
+
+
 }

@@ -47,4 +47,12 @@ public class MessageController(MessageService messageService) : ControllerBase
         var messageCounts = messageService.GetHourlyAverageMessageCountsForLast30Days();
         return Ok(messageCounts);
     }
+    
+    [HttpGet]
+    public async Task<IActionResult> GetLastMessages(int offset = 0, int limit = 50)
+    {
+        var result = await messageService.GetLastMessagesAsync(offset, limit);
+        return Ok(result);
+    }
+
 }
