@@ -160,10 +160,10 @@ public sealed class OsuUserCache : BackgroundService
             return false;
 
         res = _mem.TryGetValue(username, out var cached);
-        
+
         if (res)
             user = _mapper.Map<CachedOsuUserDto>(cached);
-        
+
         return res;
     }
 
@@ -206,14 +206,21 @@ public sealed class OsuUserCache : BackgroundService
         try
         {
             IUser? user = null;
-            try
+            
+            foreach (var mode in Enum.GetValues<GameMode>())
             {
-                user = await _osuClient.GetUserAsync(username, GameMode.Osu, token: ct);
-                if (user.GameMode != GameMode.Osu)
-                    user = await _osuClient.GetUserAsync(username, user.GameMode, token: ct);
-            }
-            catch
-            {
+                try
+                {
+                    user = await _osuClient.GetUserAsync(username, mode, ct);
+                    if (user != null)
+                        break;
+                }
+                catch
+                {
+                    // игнорируем и идём дальше
+                }
+                
+                await Task.Delay(700, ct);
             }
 
             if (user == null)

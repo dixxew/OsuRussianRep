@@ -39,9 +39,22 @@ public class OsuService(IOsuClient client, IMemoryCache cache, ILogger<OsuServic
         try
         {
             logger.LogDebug("Пробую получить юзера {Username} (osu)", username);
-            user = await client.GetUserAsync(username, GameMode.Osu, token: ct);
-            if (user.GameMode != GameMode.Osu)
-                user = await client.GetUserAsync(username, user.GameMode, token: ct);
+            foreach (var mode in Enum.GetValues<GameMode>())
+            {
+                try
+                {
+                    user = await client.GetUserAsync(username, mode, ct);
+                    if (user != null)
+                        break;
+                }
+                catch
+                {
+                    // игнорируем и идём дальше
+                }
+                
+                await Task.Delay(700, ct);
+            }
+
         }
         catch (Exception ex)
         {

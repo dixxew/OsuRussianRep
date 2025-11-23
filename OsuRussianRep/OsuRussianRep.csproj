@@ -24,10 +24,13 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.Design" Version="1.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.10" />
     <PackageReference Include="Microsoft.OpenApi" Version="1.6.28" />
-    <PackageReference Include="OsuAPI.Net" Version="2.0.0" />
-    <PackageReference Include="OsuSharp" Version="6.0.0" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.9.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.6" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\external\OsuSharp\src\OsuSharp.Domain\OsuSharp.Domain.csproj" />
+    <ProjectReference Include="..\external\OsuSharp\src\OsuSharp.JsonModels\OsuSharp.JsonModels.csproj" />
+    <ProjectReference Include="..\external\OsuSharp\src\OsuSharp\OsuSharp.csproj" />
+  </ItemGroup>
 </Project>

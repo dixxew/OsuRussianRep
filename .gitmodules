@@ -1,0 +1,3 @@
+[submodule "external/OsuSharp"]
+	path = external/OsuSharp
+	url = https://github.com/dixxew/OsuSharp.git
