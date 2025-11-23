@@ -65,6 +65,7 @@ public sealed class IrcService : IIrcService
 
                 var nick = args[3];
                 var profileUrl = args[4];
+                _logger.LogInformation("Whois resieved: {nick}", nick);
 
                 WhoisMessageReceived?.Invoke(this, new(nick, profileUrl));
             }
@@ -98,6 +99,7 @@ public sealed class IrcService : IIrcService
             _logger.LogWarning("IRC: attempted WHOIS for {Nick}, but client is NOT connected", msgNick);
             return false;
         }
+        _logger.LogInformation("Whois requested: {nick}", msgNick);
 
         try
         {
