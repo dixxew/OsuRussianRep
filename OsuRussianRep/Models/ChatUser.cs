@@ -4,7 +4,7 @@ public class ChatUser
 {
     public Guid Id { get; set; }
     public string Nickname { get; set; }
-    public long? Reputation { get; set; }
+    public long? Reputation { get; set; } = 0;
     public DateTime? LastRepTime { get; set; } = DateTime.UtcNow;
     public DateTime? LastUsedAddRep { get; set; }
     public DateTime? LastUsedWordRate { get; set; }

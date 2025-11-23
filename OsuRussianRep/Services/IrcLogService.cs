@@ -369,7 +369,8 @@ public sealed class IrcLogService : IDisposable
                     Nickname = msg.Nick,
                     OsuUserId = info.OsuUserId,
                     OsuProfileUrl = info.ProfileUrl,
-                    LastMessageDate = msg.DateUtc
+                    LastMessageDate = msg.DateUtc,
+                    Reputation = 0
                 };
                 db.ChatUsers.Add(user);
             }
