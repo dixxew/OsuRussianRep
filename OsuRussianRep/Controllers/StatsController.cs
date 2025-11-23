@@ -18,8 +18,8 @@ public sealed class StatsController(IWordStatsService stats) : ControllerBase
     {
         // дефолт: последние 7 дней [today-7, today)
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-        var f = from ?? today.AddDays(-7);
-        var t = to   ?? today.AddDays(1); // не включительно
+        var f = from ?? new DateOnly(2007,1,1);
+        var t = to   ?? today.AddDays(1);
         if (t <= f) return BadRequest("to must be > from");
 
         var data = await stats.GetTopWords(f, t, limit ?? 100, ct);
