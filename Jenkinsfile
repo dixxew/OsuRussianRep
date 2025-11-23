@@ -16,6 +16,7 @@ pipeline {
     stages {
         stage('Build & Publish') {
             steps {
+                sh 'git submodule update --init --recursive'
                 sh 'docker compose build'
             }
         }
