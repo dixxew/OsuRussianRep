@@ -109,16 +109,17 @@ public class MessageService(AppDbContext db, ILogger<MessageService> logger)
         // Чтобы offset работал, сортируем по возрастанию,
         // но выбираем самые последние total - offset - limit… ну ты понял.
         var msgs = await db.Messages
+            .Include(m => m.User)
             .OrderBy(m => m.Seq)
             .Skip(offset)
             .Take(limit)
             .Select(m => new MessageDto
             {
-                Seq = m.Seq,
                 Text = m.Text,
                 Date = m.Date,
                 ChatChannel = m.ChatChannel,
-                UserId = m.UserId
+                UserId = m.UserId,
+                UserOsuId = m.User.OsuUserId
             })
             .ToListAsync();
 
