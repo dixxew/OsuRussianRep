@@ -115,6 +115,7 @@ public class MessageService(AppDbContext db, ILogger<MessageService> logger)
             .Take(limit)
             .Select(m => new MessageDto
             {
+                Nickname = m.User.Nickname,
                 Text = m.Text,
                 Date = m.Date,
                 ChatChannel = m.ChatChannel,
