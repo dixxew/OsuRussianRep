@@ -10,6 +10,7 @@ public class ChatUser
     public DateTime? LastUsedWordRate { get; set; }
     public string? LastRepNickname { get; set; }
     public ICollection<Message>? Messages { get; set; }
+    public long MessagesCount { get; set; } = 0;
     public DateTime LastMessageDate { get; set; } = DateTime.UtcNow;
     public string? OsuProfileUrl { get; set; }
     public long? OsuUserId { get; set; }

@@ -43,12 +43,12 @@ public sealed class UsersService(
         IQueryable<ChatUser> ordered = sort switch
         {
             "messages" => baseQuery
-                .OrderByDescending(u => u.Messages.Count())
+                .OrderByDescending(u => u.MessagesCount)
                 .ThenByDescending(u => u.Reputation),
 
             _ => baseQuery
                 .OrderByDescending(u => u.Reputation)
-                .ThenByDescending(u => u.Messages.Count())
+                .ThenByDescending(u => u.MessagesCount)
         };
 
         var totalRecords = await baseQuery.CountAsync(ct);

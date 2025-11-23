@@ -11,6 +11,7 @@ public class MappingProfile : Profile
     {
         CreateMap<ChatUser, ChatUserDto>()
             .ForMember(d => d.MessagesCount, o => o.MapFrom(s => s.Messages.LongCount()))
+            .ForMember(d => d.Avatar, o => o.MapFrom(s => s.OsuUserId))
             // osu-поля заливаем потом вручную
             .ForMember(d => d.Avatar, o => o.Ignore())
             .ForMember(d => d.Accuracy, o => o.Ignore())
