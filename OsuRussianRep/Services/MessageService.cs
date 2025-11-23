@@ -110,7 +110,7 @@ public class MessageService(AppDbContext db, ILogger<MessageService> logger)
         // но выбираем самые последние total - offset - limit… ну ты понял.
         var msgs = await db.Messages
             .Include(m => m.User)
-            .OrderBy(m => m.Seq)
+            .OrderByDescending(m => m.Seq)
             .Skip(offset)
             .Take(limit)
             .Select(m => new MessageDto
