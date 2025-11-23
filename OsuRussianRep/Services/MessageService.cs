@@ -124,9 +124,6 @@ public class MessageService(AppDbContext db, ILogger<MessageService> logger)
             })
             .ToListAsync();
 
-        // Клиенту удобнее отдавать с конца
-        msgs.Reverse();
-
         return new LastMessagesDto
         {
             Offset = offset + msgs.Count,
