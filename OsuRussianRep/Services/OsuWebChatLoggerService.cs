@@ -84,7 +84,7 @@ public class OsuWebChatLoggerService(
                 logger.LogError(ex, "[WebChat] Ошибка в основном цикле");
             }
 
-            await Task.Delay(2000, stoppingToken);
+            await Task.Delay(15000, stoppingToken);
         }
 
         logger.LogInformation("[WebChat] Логгер остановлен");
