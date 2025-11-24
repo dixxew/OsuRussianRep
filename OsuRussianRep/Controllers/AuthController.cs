@@ -24,7 +24,7 @@ public class AuthController(IConfiguration config) : ControllerBase
             ["client_secret"] = config["OsuApi:ClientSecret"],
             ["code"] = code,
             ["grant_type"] = "authorization_code",
-            ["redirect_uri"] = "http://localhost:5000/callback"
+            ["redirect_uri"] = "https://osu.dixxew.ru/api/Auth/Callback"
         };
 
         var res = await http.PostAsync(
