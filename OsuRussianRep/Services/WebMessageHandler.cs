@@ -23,8 +23,9 @@ public sealed class WebMessageHandler(
     {
         try
         {
+            var usernameRaw = msg.sender?.username ?? "unknown";
+            var username = NormalizeUsername(usernameRaw);
             var osuId = msg.sender?.id ?? 0;
-            var username = msg.sender?.username ?? "unknown";
             var text = msg.content?.Trim() ?? "";
             var channel = msg.channel_id.ToString();
             var timestamp = msg.timestamp;
@@ -53,6 +54,9 @@ public sealed class WebMessageHandler(
                 msg.sender?.username, msg.content);
         }
     }
+    
+    private static string NormalizeUsername(string raw)
+        => raw.Replace(' ', '_');
 
     /// <summary>
     /// Запись сообщения в БД.
