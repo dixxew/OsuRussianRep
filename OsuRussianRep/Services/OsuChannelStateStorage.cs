@@ -11,7 +11,7 @@ public class OsuChannelStateStorage
 
     public OsuChannelStateStorage(IOptions<OsuApiOptions> cfg)
     {
-        _path = $"osu.channel.{cfg.Value.ChannelId}.json";
+        _path = $"data/osu.channel.{cfg.Value.ChannelId}.json";
     }
 
     public async Task<OsuChannelState> LoadAsync()
