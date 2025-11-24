@@ -19,8 +19,14 @@ services:
       IrcConnection__Port: ${IRC_PORT}
       IrcConnection__Password: ${IRC_PASS}
       IrcConnection__Channel: ${IRC_CHANNEL}
+      IrcConnection__UseSsl: ${IRC_USESSL}
       OsuApi__ClientId: ${OSU_ID}
       OsuApi__ClientSecret: ${OSU_SECRET}
+      OsuApi__RedirectUri: ${OSU_REDIRECT}
+      OsuApi__TokenFilePath: ${OSU_TOKEPATH}
+      OsuApi__AllowedUserId: ${OSU_USER}
+      OsuApi__ChannelId: ${OSU_CHANNEL}
+      ChatMode: ${CHAT_MODE}
     networks: [osu-russian-rep]
     restart: unless-stopped
 

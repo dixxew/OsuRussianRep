@@ -8,8 +8,14 @@ pipeline {
         IRC_PORT    = credentials('irc-port')
         IRC_PASS    = credentials('irc-pass')
         IRC_CHANNEL = credentials('irc-channel')
+        IRC_USESSL = credentials('irc-usessl')
         OSU_ID      = credentials('osu-id')
         OSU_SECRET  = credentials('osu-secret')
+        OSU_REDIRECT = credentials('osu-redirect')
+        OSU_TOKEPATH =credentials('osu-token-path')
+        OSU_USER = credentials('osu-user')
+        OSU_CHANNEL = credentials('osu-channel')
+        CHAT_MODE = credentials('chat-mode')
         DB_PASS     = credentials('db-pass')
     }
 

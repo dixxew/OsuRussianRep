@@ -1,43 +1,27 @@
-﻿using System.Text.RegularExpressions;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using OsuRussianRep.Context;
 using OsuRussianRep.Models;
 
 namespace OsuRussianRep.Services;
 
 /// <summary>
-/// Обработчик IRC-сообщений: rep-команды, логирование, служебные реакции.
+/// Упрощённый обработчик IRC-сообщений: теперь только логирование.
+/// Никаких команд репутации / rate.
 /// </summary>
 public sealed class IrcMessageHandler(
     IrcLogService ircLogService,
     IServiceScopeFactory scopeFactory,
     ILogger<IrcMessageHandler> logger)
 {
-    private static readonly Regex PlusCmd = new(
-        @"^\s*(\+?rep|\+?реп|репорт|voteban)\s+(\S+)\s*$",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-
-    private static readonly Regex MinusCmd = new(
-        @"^\s*(-?rep|-?реп)\s+(\S+)\s*$",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-    private static readonly Regex RateWordCmd = new(
-        @"^\s*(рейт|rate)\s+(\S+)\s*$",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
     private const int MaxMessageLength = 200;
 
     /// <summary>
-    /// BOSS OF WHOLE SYSTEM
+    /// Обработка сообщений из IRC-каналов.
     /// </summary>
-    private const string Boss = "dixxew";
-
-
-    /// <summary>
-    /// Обработка сообщений из каналов IRC.
-    /// </summary>
-    public async Task HandleChannelMessageAsync(string channel, string nickname, string message,
+    public async Task HandleChannelMessageAsync(
+        string channel,
+        string nickname,
+        string message,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(message))
@@ -45,26 +29,19 @@ public sealed class IrcMessageHandler(
 
         try
         {
-            logger.LogDebug("IRC [{Channel}] {Nick}: {Message}", channel, nickname, message);
+            logger.LogDebug("IRC [{Channel}] {Nick}: {Msg}", channel, nickname, message);
+            
+            using var scope = scopeFactory.CreateScope();
+            var commandProcessor = scope.ServiceProvider.GetRequiredService<ChatCommandProcessor>();
+            
+            await commandProcessor.ProcessAsync(nickname, message, ct);
 
             if (message.Length <= MaxMessageLength)
                 ircLogService.EnqueueMessage(channel, nickname, message, DateTime.UtcNow);
-
-            if (string.Equals(nickname, Boss, StringComparison.OrdinalIgnoreCase))
-                BossCommand(message);
-
-            if (TryParsePlus(message, out var targetPlus))
-                await ProcessPlusAsync(nickname, targetPlus, ct);
-
-            if (TryParseMinus(message, out var targetMinus))
-                await ProcessMinusAsync(nickname, targetMinus, ct);
-
-            if (TryParseRateWord(message, out var targetWord))
-                await ProcessRateWord(nickname, targetWord, ct);
         }
         catch (OperationCanceledException)
         {
-            // ingored
+            // ignored
         }
         catch (Exception ex)
         {
@@ -82,114 +59,7 @@ public sealed class IrcMessageHandler(
     }
 
     /// <summary>
-    /// Парсинг +rep.
-    /// </summary>
-    private static bool TryParsePlus(string msg, out string target)
-    {
-        var m = PlusCmd.Match(msg);
-        target = m.Success ? m.Groups[2].Value.Trim() : string.Empty;
-        return m.Success && target.Length > 0;
-    }
-
-    /// <summary>
-    /// Парсинг -rep.
-    /// </summary>
-    private static bool TryParseMinus(string msg, out string target)
-    {
-        var m = MinusCmd.Match(msg);
-        target = m.Success ? m.Groups[2].Value.Trim() : string.Empty;
-        return m.Success && target.Length > 0;
-    }
-
-    /// <summary>
-    /// Парсинг rate {word}
-    /// </summary>
-    private static bool TryParseRateWord(string msg, out string target)
-    {
-        var m = RateWordCmd.Match(msg);
-        target = m.Success ? m.Groups[2].Value.Trim() : string.Empty;
-        return m.Success && target.Length > 0;
-    }
-
-    /// <summary>
-    /// Обработка +rep.
-    /// </summary>
-    private async Task ProcessPlusAsync(string from, string target, CancellationToken ct)
-    {
-        var osuService = scopeFactory.CreateScope().ServiceProvider.GetRequiredService<OsuService>();
-        var reputationService = scopeFactory.CreateScope().ServiceProvider.GetRequiredService<ReputationService>();
-
-        if (SameUser(from, target) && !IsBoss(from)) return;
-
-        if (!await osuService.CheckUserExists(target, ct))
-        {
-            logger.LogWarning("Цель +rep не найдена: {Target}", target);
-            return;
-        }
-
-        logger.LogInformation("{Nick} выдал +rep {Target}", from, target);
-        await reputationService.AddReputationAsync(target, from, ct);
-    }
-
-    /// <summary>
-    /// Обработка -rep.
-    /// </summary>
-    private async Task ProcessMinusAsync(string from, string target, CancellationToken ct)
-    {
-        var osuService = scopeFactory.CreateScope().ServiceProvider.GetRequiredService<OsuService>();
-        var reputationService = scopeFactory.CreateScope().ServiceProvider.GetRequiredService<ReputationService>();
-
-        if (SameUser(from, target)) return;
-
-        if (!await osuService.CheckUserExists(target, ct))
-        {
-            logger.LogWarning("Цель -rep не найдена: {Target}", target);
-            return;
-        }
-
-        logger.LogInformation("{Nick} выдал -rep {Target}", from, target);
-        await reputationService.RemoveReputationAsync(target, from, ct);
-    }
-
-    /// <summary>
-    /// Обработка rate-команды.
-    /// </summary>
-    private async Task ProcessRateWord(string from, string targetWord, CancellationToken ct)
-    {
-        var wordsStatsService = scopeFactory.CreateScope().ServiceProvider.GetRequiredService<IWordStatsService>();
-
-        logger.LogInformation("{Nick} оценил слово {Target}", from, targetWord);
-        await wordsStatsService.IncrementWordScore(targetWord, from, ct);
-    }
-
-    /// <summary>
-    /// Проверяет, совпадают ли ники.
-    /// </summary>
-    private static bool SameUser(string a, string b)
-        => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Проверяет, является ли отправитель боссом.
-    /// </summary>
-    private static bool IsBoss(string n)
-        => string.Equals(n, Boss, StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Обработка команд босса (заглушка).
-    /// </summary>
-    private void BossCommand(string message)
-    {
-        var parts = message.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length < 2) return;
-
-        var cmd = parts[0];
-        var arg = parts[1];
-
-        logger.LogDebug("Неизвестная команда: {Command}", cmd);
-    }
-
-    /// <summary>
-    /// Обработка WHOIS.
+    /// Обработка WHOIS для определения osuId.
     /// </summary>
     public async Task HandleWhoisAsync(string nick, string profileUrl, CancellationToken ct = default)
     {
@@ -212,7 +82,9 @@ public sealed class IrcMessageHandler(
                 Nickname = nick,
                 Reputation = 0,
                 OsuProfileUrl = profileUrl,
-                OsuUserId = osuId
+                OsuUserId = osuId,
+                LastMessageDate = DateTime.UtcNow,
+                MessagesCount = 0
             };
             db.ChatUsers.Add(user);
         }

@@ -1,6 +1,8 @@
 ﻿using System.Text;
 using Meebey.SmartIrc4net;
+using Microsoft.Extensions.Options;
 using OsuRussianRep.Interfaces;
+using OsuRussianRep.Options;
 
 namespace OsuRussianRep.Services;
 
@@ -30,16 +32,16 @@ public sealed class IrcService : IIrcService
 
     public bool IsConnected => _client.IsConnected;
 
-    public IrcService(IConfiguration config, ILogger<IrcService> logger)
+    public IrcService(IOptions<IrcConnectionOptions> config, ILogger<IrcService> logger)
     {
         _logger = logger;
 
-        _server = config.GetValue("IrcConnection:Server", "");
-        _port = config.GetValue("IrcConnection:Port", 6667);
-        _useSsl = config.GetValue("IrcConnection:UseSsl", false);
-        _channel = config.GetValue("IrcConnection:Channel", "");
-        _nickname = config.GetValue("IrcConnection:Nickname", "");
-        _password = config.GetValue<string?>("IrcConnection:Password", null);
+        _server = config.Value.Server;
+        _port = config.Value.Port;
+        _useSsl = config.Value.UseSsl;
+        _channel = config.Value.Channel;
+        _nickname = config.Value.Nickname;
+        _password = config.Value.Password;
 
         _client.Encoding = Encoding.UTF8;
         _client.SendDelay = 200;

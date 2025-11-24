@@ -1,18 +1,33 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using OsuRussianRep.Dtos.OsuAuth;
+using OsuRussianRep.Options;
+using OsuRussianRep.Services;
 
 namespace OsuRussianRep.Controllers;
 
 [ApiController]
 [Route("api/[Controller]/[action]")]
-public class AuthController(IConfiguration config) : ControllerBase
+public class AuthController(IOptions<OsuApiOptions> config, OsuTokenService tokens) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Callback(string code)
     {
-        var resp = await ExchangeCode(code);
-        Console.WriteLine("ACCESS: " + resp.access_token);
-        Console.WriteLine("REFRESH: " + resp.refresh_token);
+        await tokens.SaveNewTokens(await ExchangeCode(code));
         return Ok();
+    }
+
+    [HttpGet]
+    public IActionResult Relogin()
+    {
+        var url =
+            $"https://osu.ppy.sh/oauth/authorize" +
+            $"?client_id={config.Value.ClientId}" +
+            $"&redirect_uri={Uri.EscapeDataString(config.Value.RedirectUri)}" +
+            $"&response_type=code" +
+            $"&scope=public+chat.read+chat.write+chat.write_manage";
+
+        return Redirect(url);
     }
     
     async Task<TokenResponse> ExchangeCode(string code)
@@ -20,11 +35,11 @@ public class AuthController(IConfiguration config) : ControllerBase
         var http = new HttpClient();
         var dict = new Dictionary<string, string>
         {
-            ["client_id"] = config["OsuApi:ClientId"],
-            ["client_secret"] = config["OsuApi:ClientSecret"],
+            ["client_id"] = config.Value.ClientId,
+            ["client_secret"] = config.Value.ClientSecret,
             ["code"] = code,
             ["grant_type"] = "authorization_code",
-            ["redirect_uri"] = "https://osu.dixxew.ru/api/Auth/Callback"
+            ["redirect_uri"] = config.Value.RedirectUri,
         };
 
         var res = await http.PostAsync(
@@ -37,12 +52,5 @@ public class AuthController(IConfiguration config) : ControllerBase
         var json = await res.Content.ReadAsStringAsync();
         return System.Text.Json.JsonSerializer.Deserialize<TokenResponse>(json)!;
     }
-    
-    public record TokenResponse(
-        string token_type,
-        int expires_in,
-        string access_token,
-        string refresh_token
-    );
 
 }

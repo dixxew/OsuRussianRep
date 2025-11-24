@@ -2,7 +2,8 @@
 using OsuRussianRep.Context;
 using OsuRussianRep.Dtos;
 using OsuRussianRep.Models;
-using OsuRussianRep.Services;
+
+namespace OsuRussianRep.Services;
 
 public sealed class UserOsuSyncBackgroundService(
     IServiceScopeFactory scopeFactory,

@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using OsuRussianRep.Context;
 using OsuRussianRep.Dtos;
 using OsuRussianRep.Services;
