@@ -23,7 +23,7 @@ public class AuthController(IOptions<OsuApiOptions> config, OsuTokenService toke
         var url =
             $"https://osu.ppy.sh/oauth/authorize" +
             $"?client_id={config.Value.ClientId}" +
-            $"&redirect_uri={Uri.EscapeDataString(config.Value.RedirectUri)}" +
+            $"&redirect_uri={config.Value.RedirectUri}" +
             $"&response_type=code" +
             $"&scope=public+chat.read+chat.write+chat.write_manage";
 

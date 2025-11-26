@@ -70,7 +70,7 @@ public class OsuWebChatLoggerService(
                         m.content);
 
                     await handler.HandleAsync(m, stoppingToken);
-
+                    
                     _lastMessageId = Math.Max(_lastMessageId, m.message_id);
                     state.LastMessageId = _lastMessageId;
                     await storage.SaveAsync(state);

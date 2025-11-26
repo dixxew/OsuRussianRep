@@ -63,7 +63,7 @@ internal class Program
 
     private static void ConfigureOptions(WebApplicationBuilder builder, IConfiguration cfg)
     {
-        builder.Services.Configure<OsuApiOptions>(cfg.GetSection("Osu"));
+        builder.Services.Configure<OsuApiOptions>(cfg.GetSection("OsuApi"));
         builder.Services.Configure<IrcConnectionOptions>(cfg.GetSection("IrcConnection"));
     }
 
