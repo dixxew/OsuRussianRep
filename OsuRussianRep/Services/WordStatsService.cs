@@ -23,12 +23,12 @@ public sealed class WordStatsService(AppDbContext db, IStopWordsProvider stopWor
         DateOnly from, DateOnly to, int limit, CancellationToken ct)
     {
         var capped = Math.Clamp(limit, 1, 500);
-
+        var stops = stopWordsProvider.All.ToArray();
         var query =
             db.WordsInDay
                 .AsNoTracking()
                 .Where(wd => wd.Day >= from && wd.Day < to
-                                            && !stopWordsProvider.All.Contains(wd.Word.Lemma))
+                                            && !stops.Contains(wd.Word.Lemma))
                 .GroupBy(wd => wd.WordId)
                 .Select(g => new
                 {
