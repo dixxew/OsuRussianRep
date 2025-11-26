@@ -24,14 +24,20 @@ public sealed class WordStatsService(AppDbContext db, IStopWordsProvider stopWor
     {
         var capped = Math.Clamp(limit, 1, 500);
         var stops = stopWordsProvider.All.ToArray();
+
         var candidateWords =
             db.Words
                 .Where(w => !stops.Contains(w.Lemma))
                 .OrderByDescending(w => w.WordScore)
                 .Take(capped * 5)
-                .Select(w => new {w.Id, w.Lemma, w.WordScore});
+                .Select(w => new
+                {
+                    w.Id,
+                    w.Lemma,
+                    Rate = w.WordScore
+                });
 
-        var query =
+        var flat =
             db.WordsInDay
                 .Where(wd => wd.Day >= from && wd.Day < to)
                 .Join(
@@ -41,10 +47,13 @@ public sealed class WordStatsService(AppDbContext db, IStopWordsProvider stopWor
                     (wd, cw) => new
                     {
                         cw.Lemma,
-                        Rate = cw.WordScore,
-                        wd.Cnt
+                        Rate = cw.Rate,
+                        Cnt = wd.Cnt
                     }
-                )
+                );
+
+        var query =
+            flat
                 .GroupBy(x => new {x.Lemma, x.Rate})
                 .Select(g => new TopWordDto(
                     g.Key.Lemma,
