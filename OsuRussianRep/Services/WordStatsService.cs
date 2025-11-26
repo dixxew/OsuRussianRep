@@ -23,49 +23,46 @@ public sealed class WordStatsService(AppDbContext db, IStopWordsProvider stopWor
         DateOnly from, DateOnly to, int limit, CancellationToken ct)
     {
         var capped = Math.Clamp(limit, 1, 500);
-        var stops = stopWordsProvider.All.ToArray();
+        var stops = stopWordsProvider.All.ToHashSet();
 
-        var candidateWords =
-            db.Words
-                .Where(w => !stops.Contains(w.Lemma))
-                .OrderByDescending(w => w.WordScore)
-                .Take(capped * 5)
-                .Select(w => new
-                {
-                    w.Id,
-                    w.Lemma,
-                    Rate = w.WordScore
-                });
-
-        var flat =
-            db.WordsInDay
-                .Where(wd => wd.Day >= from && wd.Day < to)
-                .Join(
-                    candidateWords,
-                    wd => wd.WordId,
-                    cw => cw.Id,
-                    (wd, cw) => new
-                    {
-                        cw.Lemma,
-                        Rate = cw.Rate,
-                        Cnt = wd.Cnt
-                    }
-                );
-
-        var query =
-            flat
-                .GroupBy(x => new {x.Lemma, x.Rate})
-                .Select(g => new TopWordDto(
-                    g.Key.Lemma,
-                    g.Sum(x => x.Cnt),
-                    g.Key.Rate
-                ));
-
-        return await query
-            .OrderByDescending(x => x.Rate)
-            .ThenByDescending(x => x.Cnt)
-            .Take(capped)
+        var candidateWords = await db.Words
+            .Where(w => !stops.Contains(w.Lemma))
+            .OrderByDescending(w => w.WordScore)
+            .Take(limit * 5)
             .ToListAsync(ct);
+
+        var candidateIds = candidateWords.Select(w => w.Id).ToList();
+
+        var flat = db.WordsInDay
+            .Where(wd => wd.Day >= from && wd.Day < to)
+            .Where(wd => candidateIds.Contains(wd.WordId));
+
+        var grouped = await flat
+            .GroupBy(wd => wd.WordId)
+            .Select(g => new
+            {
+                WordId = g.Key,
+                Cnt = g.Sum(x => x.Cnt)
+            })
+            .ToListAsync(ct);
+
+        var result =
+            grouped
+                .Join(candidateWords,
+                    g => g.WordId,
+                    w => w.Id,
+                    (g, w) => new TopWordDto(
+                        w.Lemma,
+                        g.Cnt,
+                        w.WordScore
+                    ))
+                .OrderByDescending(x => x.Rate)
+                .ThenByDescending(x => x.Cnt)
+                .Take(capped)
+                .ToList();
+
+        return result;
+
     }
 
 
