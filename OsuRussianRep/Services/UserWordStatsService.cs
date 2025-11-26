@@ -17,7 +17,7 @@ public sealed class UserWordStatsService(AppDbContext db, IStopWordsProvider sto
     public async Task<IReadOnlyList<TopWordDto>> GetTopWordsForUser(string nickname, int limit, CancellationToken ct)
     {
         var capped = Math.Clamp(limit, 1, 500);
-
+    
         var userId = await db.ChatUsers
             .AsNoTracking()
             .Where(u => u.Nickname == nickname)
@@ -26,11 +26,11 @@ public sealed class UserWordStatsService(AppDbContext db, IStopWordsProvider sto
 
         if (userId is null)
             return [];
-        
+        var stops = stopWordsProvider.All.ToArray();
         var q = from wu in db.WordUsers.AsNoTracking()
             where wu.UserId == userId
             join w in db.Words.AsNoTracking() on wu.WordId equals w.Id
-            where !stopWordsProvider.All.Contains(w.Lemma) // 🧹 фильтруем мусор
+            where !stops.Contains(w.Lemma) // 🧹 фильтруем мусор
             orderby wu.Cnt descending
             select new TopWordDto(w.Lemma, wu.Cnt, w.WordScore);
 
@@ -41,10 +41,11 @@ public sealed class UserWordStatsService(AppDbContext db, IStopWordsProvider sto
     {
         var capped = Math.Clamp(limit, 1, 500);
 
+        var stops = stopWordsProvider.All.ToArray();
         var q = from wu in db.WordUsers.AsNoTracking()
             where wu.UserId == userId
             join w in db.Words.AsNoTracking() on wu.WordId equals w.Id
-            where !stopWordsProvider.All.Contains(w.Lemma) // 🧹 фильтруем мусор
+            where !stops.Contains(w.Lemma) // 🧹 фильтруем мусор
             orderby wu.Cnt descending
             select new TopWordDto(w.Lemma, wu.Cnt, w.WordScore);
 
