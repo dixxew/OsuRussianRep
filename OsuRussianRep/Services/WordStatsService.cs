@@ -24,32 +24,34 @@ public sealed class WordStatsService(AppDbContext db, IStopWordsProvider stopWor
     {
         var capped = Math.Clamp(limit, 1, 500);
         var stops = stopWordsProvider.All.ToArray();
+        var candidateWords =
+            db.Words
+                .Where(w => !stops.Contains(w.Lemma))
+                .OrderByDescending(w => w.WordScore)
+                .Take(capped * 5)
+                .Select(w => new { w.Id, w.Lemma, w.WordScore });
+
         var query =
             db.WordsInDay
-                .AsNoTracking()
-                .Where(wd => wd.Day >= from && wd.Day < to
-                                            && !stops.Contains(wd.Word.Lemma))
-                .GroupBy(wd => wd.WordId)
-                .Select(g => new
-                {
-                    WordId = g.Key,
-                    Cnt = g.Sum(x => x.Cnt)
-                })
-                .Join(db.Words.AsNoTracking(),
-                    agg => agg.WordId,
-                    w => w.Id,
-                    (agg, w) => new
-                    {
-                        w.Lemma,
-                        agg.Cnt,
-                        w.WordScore
-                    })
-                .OrderByDescending(x => x.WordScore) // rate first
-                .ThenByDescending(x => x.Cnt) // freq second
-                .Take(capped)
-                .Select(x => new TopWordDto(x.Lemma, x.Cnt, x.WordScore));
+                .Where(wd => wd.Day >= from && wd.Day < to)
+                .Join(
+                    candidateWords,
+                    wd => wd.WordId,
+                    cw => cw.Id,
+                    (wd, cw) => new { wd.Cnt, wd.Day, cw.Id, cw.Lemma, cw.WordScore }
+                )
+                .GroupBy(x => new { x.Id, x.Lemma, x.WordScore })
+                .Select(g => new TopWordDto(
+                    g.Key.Lemma,
+                    g.Sum(x => x.Cnt),
+                    g.Key.WordScore
+                ));
 
-        return await query.ToListAsync(ct);
+        return await query
+            .OrderByDescending(x => x.Rate)
+            .ThenByDescending(x => x.Cnt)
+            .Take(capped)
+            .ToListAsync(ct);
     }
 
 
