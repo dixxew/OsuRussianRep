@@ -11,7 +11,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Message> Messages { get; set; }
     public DbSet<Word> Words { get; set; }
     public DbSet<WordDay> WordsInDay { get; set; }
-    public DbSet<WordDay> WordsInMonth { get; set; }
+    public DbSet<WordMonth> WordsInMonth { get; set; }
     public DbSet<IngestOffset> IngestOffsets { get; set; }
     public DbSet<WordUser> WordUsers { get; set; }
 
