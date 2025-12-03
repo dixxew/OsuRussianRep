@@ -23,46 +23,33 @@ public sealed class WordStatsService(AppDbContext db, IStopWordsProvider stopWor
         DateOnly from, DateOnly to, int limit, CancellationToken ct)
     {
         var capped = Math.Clamp(limit, 1, 500);
-        var stops = stopWordsProvider.All.ToHashSet();
-
-        var candidateWords = await db.Words
-            .Where(w => !stops.Contains(w.Lemma))
-            .OrderByDescending(w => w.WordScore)
-            .Take(limit * 5)
-            .ToListAsync(ct);
-
-        var candidateIds = candidateWords.Select(w => w.Id).ToList();
-
-        var flat = db.WordsInDay
-            .Where(wd => wd.Day >= from && wd.Day < to)
-            .Where(wd => candidateIds.Contains(wd.WordId));
-
-        var grouped = await flat
-            .GroupBy(wd => wd.WordId)
-            .Select(g => new
-            {
-                WordId = g.Key,
-                Cnt = g.Sum(x => x.Cnt)
-            })
-            .ToListAsync(ct);
-
-        var result =
-            grouped
-                .Join(candidateWords,
-                    g => g.WordId,
+        var stops = stopWordsProvider.All.ToArray();
+        var query =
+            db.WordsInDay
+                .AsNoTracking()
+                .Where(wd => wd.Day >= from && wd.Day < to
+                                            && !stops.Contains(wd.Word.Lemma))
+                .GroupBy(wd => wd.WordId)
+                .Select(g => new
+                {
+                    WordId = g.Key,
+                    Cnt = g.Sum(x => x.Cnt)
+                })
+                .Join(db.Words.AsNoTracking(),
+                    agg => agg.WordId,
                     w => w.Id,
-                    (g, w) => new TopWordDto(
+                    (agg, w) => new
+                    {
                         w.Lemma,
-                        g.Cnt,
+                        agg.Cnt,
                         w.WordScore
-                    ))
-                .OrderByDescending(x => x.Rate)
-                .ThenByDescending(x => x.Cnt)
+                    })
+                .OrderByDescending(x => x.WordScore) // rate first
+                .ThenByDescending(x => x.Cnt) // freq second
                 .Take(capped)
-                .ToList();
+                .Select(x => new TopWordDto(x.Lemma, x.Cnt, x.WordScore));
 
-        return result;
-
+        return await query.ToListAsync(ct);
     }
 
 
