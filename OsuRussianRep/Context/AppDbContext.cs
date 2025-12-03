@@ -11,6 +11,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Message> Messages { get; set; }
     public DbSet<Word> Words { get; set; }
     public DbSet<WordDay> WordsInDay { get; set; }
+    public DbSet<WordDay> WordsInMonth { get; set; }
     public DbSet<IngestOffset> IngestOffsets { get; set; }
     public DbSet<WordUser> WordUsers { get; set; }
 
@@ -72,10 +73,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasOne(x => x.Word)
                 .WithMany(w => w.Days)
                 .HasForeignKey(x => x.WordId)
-                .OnDelete(DeleteBehavior.Restrict); // ← чтобы не снести статистику удалением слова
+                .OnDelete(DeleteBehavior.Restrict);
 
             e.ToTable("WordDays");
             e.HasIndex(x => x.Day); // на диапазоны дат
+        });
+        
+        modelBuilder.Entity<WordMonth>(e =>
+        {
+            e.HasKey(x => new { x.Month, x.WordId });
+            e.HasOne(x => x.Word)
+                .WithMany(w => w.Months)
+                .HasForeignKey(x => x.WordId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.ToTable("WordMonths");
+            e.HasIndex(x => x.Month); // на диапазоны дат
         });
 
         modelBuilder.Entity<IngestOffset>(e =>
