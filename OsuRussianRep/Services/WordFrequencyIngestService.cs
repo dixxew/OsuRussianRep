@@ -150,37 +150,35 @@ public sealed class WordFrequencyIngestService : BackgroundService
                     DO UPDATE SET "Cnt" = "WordDays"."Cnt" + EXCLUDED."Cnt";
                     """,
                     new object[] {pDays, pWids, pCnts}, ct);
-
-                // TODO enable when WordMonthBackfillService finish 
-                //
-                // // === WordMonths
-                // var month = new DateOnly(day.Year, day.Month, 1);
-                // var monthArr = new DateOnly[batchCounts.Count];
-                // var mwidArr = new long[batchCounts.Count];
-                // var mcntArr = new long[batchCounts.Count];
-                // int k = 0;
-                //
-                // foreach (var (lemma, cnt) in batchCounts)
-                // {
-                //     monthArr[k] = month;
-                //     mwidArr[k] = map[lemma];
-                //     mcntArr[k] = cnt;
-                //     k++;
-                // }
-                //
-                // var pMonth = new NpgsqlParameter("m", NpgsqlDbType.Array | NpgsqlDbType.Date) {Value = monthArr};
-                // var pMWids = new NpgsqlParameter("w", NpgsqlDbType.Array | NpgsqlDbType.Bigint) {Value = mwidArr};
-                // var pMCnts = new NpgsqlParameter("c", NpgsqlDbType.Array | NpgsqlDbType.Bigint) {Value = mcntArr};
-                //
-                // await db.Database.ExecuteSqlRawAsync(
-                //     """
-                //     INSERT INTO "WordMonths" ("Month","WordId","Cnt")
-                //     SELECT m, wid, c
-                //     FROM unnest(@m::date[], @w::bigint[], @c::bigint[]) AS t(m, wid, c)
-                //     ON CONFLICT ("Month","WordId")
-                //     DO UPDATE SET "Cnt" = "WordMonths"."Cnt" + EXCLUDED."Cnt";
-                //     """,
-                //     new object[] {pMonth, pMWids, pMCnts}, ct);
+                
+                // === WordMonths
+                var month = new DateOnly(day.Year, day.Month, 1);
+                var monthArr = new DateOnly[batchCounts.Count];
+                var mwidArr = new long[batchCounts.Count];
+                var mcntArr = new long[batchCounts.Count];
+                int k = 0;
+                
+                foreach (var (lemma, cnt) in batchCounts)
+                {
+                    monthArr[k] = month;
+                    mwidArr[k] = map[lemma];
+                    mcntArr[k] = cnt;
+                    k++;
+                }
+                
+                var pMonth = new NpgsqlParameter("m", NpgsqlDbType.Array | NpgsqlDbType.Date) {Value = monthArr};
+                var pMWids = new NpgsqlParameter("w", NpgsqlDbType.Array | NpgsqlDbType.Bigint) {Value = mwidArr};
+                var pMCnts = new NpgsqlParameter("c", NpgsqlDbType.Array | NpgsqlDbType.Bigint) {Value = mcntArr};
+                
+                await db.Database.ExecuteSqlRawAsync(
+                    """
+                    INSERT INTO "WordMonths" ("Month","WordId","Cnt")
+                    SELECT m, wid, c
+                    FROM unnest(@m::date[], @w::bigint[], @c::bigint[]) AS t(m, wid, c)
+                    ON CONFLICT ("Month","WordId")
+                    DO UPDATE SET "Cnt" = "WordMonths"."Cnt" + EXCLUDED."Cnt";
+                    """,
+                    new object[] {pMonth, pMWids, pMCnts}, ct);
 
                 
                 // === WordUsers

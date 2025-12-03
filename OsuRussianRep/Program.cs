@@ -101,7 +101,6 @@ internal class Program
 
         builder.Services.AddHostedService<WordFrequencyIngestService>();
         builder.Services.AddHostedService<UserOsuSyncBackgroundService>();
-        builder.Services.AddHostedService<WordMonthBackfillService>();
     }
 
     private static void ConfigureChatMode(WebApplicationBuilder builder, string? chatMode)
